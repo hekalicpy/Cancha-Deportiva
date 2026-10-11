@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arena 7 - Sistema de Reservas</title>
+    <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login" id="login">
+    <img src="logo.png" class="logo" alt="Arena 7">
+    <h2>Sistema Control de Canchas Sintéticas</h2>
+
+    <input type="email" id="correo" placeholder="Correo electrónico">
+    <input type="password" id="clave" placeholder="Contraseña">
+
+    <div class="ayuda-password">
+        La contraseña debe tener mínimo 8 caracteres, una mayúscula, un número y un carácter especial.
+    </div>
+
+    <div class="captcha-box">
+        <label id="preguntaCaptcha"></label>
+        <input type="number" id="captcha" placeholder="Respuesta CAPTCHA">
+        <button type="button" class="btn-secundario" onclick="generarCaptcha()">Cambiar CAPTCHA</button>
+    </div>
+
+    <button onclick="ingresar()">INICIAR SESIÓN</button>
+
+    <p class="link-login">¿Olvidé mi contraseña?</p>
+    <p class="link-login">Crear nueva cuenta</p>
+</div>
+
+<!-- SISTEMA -->
+<div class="sistema" id="sistema">
+    <div class="header">
+        ARENA 7 - Sistema de Reservas
+        <span id="usuarioActivo"></span>
+    </div>
+
+    <div class="contenedor">
+
+        <!-- MENÚ MODIFICADO -->
+        <div class="menu">
+            <div class="menu-logo">
+                <img src="logo.png" alt="Arena 7">
+                <h3>Administrador Arena 7</h3>
+            </div>
+
+            <ul>
+                <li id="menuReserva" class="activo" onclick="mostrarSeccion('reserva')">⚽ Alquiler / Reserva</li>
+                <li id="menuReportes" onclick="mostrarSeccion('reportes')">📊 Reportes</li>
+            </ul>
+        </div>
+
+        <div class="contenido">
+
+            <!-- SECCIÓN RESERVA -->
+            <div id="seccionReserva">
+                <div class="titulo">
+                    <h1>RESERVA DE CANCHAS</h1>
+                    <button class="btn" onclick="abrirModal()">Nuevo Cliente / Reserva</button>
+                </div>
+
+                <div class="filtros">
+                    <div>
+                        <label>Fecha de reserva</label>
+                        <input type="date" id="fechaConsulta" onchange="actualizarVista()">
+                    </div>
+
+                    <div>
+                        <label>Turno</label>
+                        <select id="turno" onchange="actualizarVista()">
+                            <option value="manana">Mañana</option>
+                            <option value="tarde">Tarde</option>
+                            <option value="noche" selected>Noche</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>Buscar cliente por DNI</label>
+                        <input type="text" id="buscarDni" placeholder="Ingrese DNI" onkeyup="buscarCliente()">
+                    </div>
+                </div>
+
+                <div class="calendario">
+                    <div class="fecha" id="fechaCalendario"></div>
+                    <div class="grid" id="gridReservas"></div>
+                </div>
+
+                <div class="tabla-reservas">
+                    <h2>Reservas Registradas</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>DNI</th>
+                                <th>Cliente</th>
+                                <th>Teléfono</th>
+                                <th>Cancha</th>
+                                <th>Fecha</th>
+                                <th>Horario</th>
+                                <th>Pago</th>
+                                <th>Cód. Pago</th>
+                                <th>Estado</th>
+                                <th>Usuario</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaReservas"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- SECCIÓN REPORTES -->
+            <div id="seccionReportes" style="display:none;">
+                <div class="titulo">
+                    <h1>REPORTES AUTOMÁTICOS</h1>
+                    <button class="btn" onclick="imprimirReporte()">Imprimir Reporte</button>
+                </div>
+
+                <div class="filtros">
+                    <div>
+                        <label>Fecha inicio</label>
+                        <input type="date" id="fechaInicioReporte" onchange="actualizarReportes()">
+                    </div>
+
+                    <div>
+                        <label>Fecha fin</label>
+                        <input type="date" id="fechaFinReporte" onchange="actualizarReportes()">
+                    </div>
+
+                    <div>
+                        <label>Turno</label>
+                        <select id="turnoReporte" onchange="actualizarReportes()">
+                            <option value="todos">Todos</option>
+                            <option value="manana">Mañana</option>
+                            <option value="tarde">Tarde</option>
+                            <option value="noche">Noche</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>Buscar cliente por DNI</label>
+                        <input type="text" id="buscarDniReporte" placeholder="Ingrese DNI" onkeyup="actualizarReportes()">
+                    </div>
+
+                    <div>
+                        <label>Rangos rápidos</label>
+                        <button type="button" class="btn" onclick="filtrarUltimosDias(3)">Últimos 3 días</button>
+                    </div>
+
+                    <div>
+                        <label>&nbsp;</label>
+                        <button type="button" class="btn" onclick="filtrarUltimosDias(5)">Últimos 5 días</button>
+                    </div>
+
+                    <div>
+                        <label>&nbsp;</label>
+                        <button type="button" class="btn cancelar" onclick="limpiarFiltrosReporte()">Limpiar filtros</button>
+                    </div>
+                </div>
+
+                <div class="tabla-reservas">
+                    <h2>Resumen General</h2>
+
+                    <div class="filtros">
+                        <div>
+                            <label>Total de reservas</label>
+                            <input type="text" id="reporteTotal" readonly>
+                        </div>
+
+                        <div>
+                            <label>Total recaudado</label>
+                            <input type="text" id="reporteMonto" readonly>
+                        </div>
+
+                        <div>
+                            <label>Reservas confirmadas</label>
+                            <input type="text" id="reporteConfirmadas" readonly>
+                        </div>
+                    </div>
+
+                    <h2>Detalle de Reservas</h2>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>DNI</th>
+                                <th>Cliente</th>
+                                <th>Teléfono</th>
+                                <th>Cancha</th>
+                                <th>Fecha</th>
+                                <th>Horario</th>
+                                <th>Método de Pago</th>
+                                <th>Código Pago</th>
+                                <th>Monto</th>
+                                <th>Usuario</th>
+                                <th>Registro</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaReportes"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- MODAL RESERVA -->
+<div class="modal" id="modal">
+    <div class="formulario">
+        <h2>Reservar Cancha</h2>
+
+        <label>DNI</label>
+        <div class="grupo-busqueda">
+            <input type="text" id="dni" placeholder="DNI del cliente">
+            <button class="btn" onclick="autocompletarCliente()">Buscar</button>
+        </div>
+
+        <label>Cliente</label>
+        <input type="text" id="cliente" placeholder="Nombre y apellido del cliente">
+
+        <label>Teléfono</label>
+        <input type="text" id="telefono" placeholder="Número de celular">
+
+        <label>Cancha</label>
+        <select id="cancha">
+            <option value="1">Cancha 1</option>
+            <option value="2">Cancha 2</option>
+            <option value="3">Cancha 3</option>
+            <option value="4">Cancha 4</option>
+        </select>
+
+        <label>Fecha</label>
+        <input type="date" id="fecha">
+
+        <label>Hora inicial</label>
+        <select id="hora"></select>
+
+        <label>Método de pago</label>
+        <select id="pago">
+            <option>Yape</option>
+            <option>Plin</option>
+            <option>Efectivo</option>
+        </select>
+
+        <label>Código de operación / pago</label>
+        <input type="text" id="codigoPago" placeholder="Ejemplo: YP123456">
+
+        <label>Monto pagado</label>
+        <input type="number" id="monto" placeholder="Monto total pagado">
+
+        <label>Detalles</label>
+        <textarea id="detalle" placeholder="Ingrese algún detalle de la reserva"></textarea>
+
+        <div class="botones">
+            <button class="btn cancelar" onclick="cerrarModal()">Cancelar</button>
+            <button class="btn" onclick="guardarReserva()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL VOUCHER -->
+<div class="modal" id="modalVoucher">
+    <div class="voucher" id="voucher">
+        <div class="voucher-encabezado">
+            <img src="logo.png" alt="Arena 7">
+            <h2>Voucher de Reserva</h2>
+        </div>
+
+        <div id="contenidoVoucher"></div>
+
+        <div class="botones voucher-botones">
+            <button class="btn" onclick="imprimirVoucher()">Imprimir / Guardar PDF</button>
+            <button class="btn" onclick="compartirWhatsApp()">Compartir WhatsApp</button>
+            <button class="btn cancelar" onclick="cerrarVoucher()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<div class="alerta" id="alerta"></div>
+
+<script>
+let reservaEditandoId = null;
+let captchaResultado = 0;
+let usuarioActual = "";
+let ultimoVoucher = null;
+let reservas = [];
+
+let clientes = [
+    { dni: "12345678", nombre: "Samuel Ramos", telefono: "987654321" },
+    { dni: "87654321", nombre: "Antonio Flores", telefono: "912345678" },
+    { dni: "45678912", nombre: "Luis Torres", telefono: "955444333" }
+];
+
+const horariosPorTurno = {
+    manana: [
+        { valor: "08", texto: "08:00 a.m.", fin: "09:00 a.m." },
+        { valor: "09", texto: "09:00 a.m.", fin: "10:00 a.m." },
+        { valor: "10", texto: "10:00 a.m.", fin: "11:00 a.m." },
+        { valor: "11", texto: "11:00 a.m.", fin: "12:00 p.m." }
+    ],
+    tarde: [
+        { valor: "12", texto: "12:00 p.m.", fin: "01:00 p.m." },
+        { valor: "13", texto: "01:00 p.m.", fin: "02:00 p.m." },
+        { valor: "14", texto: "02:00 p.m.", fin: "03:00 p.m." },
+        { valor: "15", texto: "03:00 p.m.", fin: "04:00 p.m." },
+        { valor: "16", texto: "04:00 p.m.", fin: "05:00 p.m." }
+    ],
+    noche: [
+        { valor: "18", texto: "06:00 p.m.", fin: "07:00 p.m." },
+        { valor: "19", texto: "07:00 p.m.", fin: "08:00 p.m." },
+        { valor: "20", texto: "08:00 p.m.", fin: "09:00 p.m." },
+        { valor: "21", texto: "09:00 p.m.", fin: "10:00 p.m." }
+    ]
+};
+
+window.onload = function(){
+    generarCaptcha();
+
+    let hoy = new Date().toISOString().split("T")[0];
+
+    document.getElementById("fechaConsulta").value = hoy;
+    document.getElementById("fecha").value = hoy;
+
+    if(document.getElementById("fechaInicioReporte")){
+        document.getElementById("fechaInicioReporte").value = hoy;
+    }
+
+    if(document.getElementById("fechaFinReporte")){
+        document.getElementById("fechaFinReporte").value = hoy;
+    }
+
+    llenarSelectHoras();
+    cargarReservas();
+};
+
+function mostrarSeccion(seccion){
+    document.getElementById("seccionReserva").style.display = "none";
+    document.getElementById("seccionReportes").style.display = "none";
+
+    document.getElementById("menuReserva").classList.remove("activo");
+    document.getElementById("menuReportes").classList.remove("activo");
+
+    if(seccion === "reserva"){
+        document.getElementById("seccionReserva").style.display = "block";
+        document.getElementById("menuReserva").classList.add("activo");
+    }
+
+    if(seccion === "reportes"){
+        document.getElementById("seccionReportes").style.display = "block";
+        document.getElementById("menuReportes").classList.add("activo");
+        actualizarReportes();
+    }
+}
+
+function generarCaptcha(){
+    let n1 = Math.floor(Math.random() * 9) + 1;
+    let n2 = Math.floor(Math.random() * 9) + 1;
+
+    captchaResultado = n1 + n2;
+
+    document.getElementById("preguntaCaptcha").innerText = "CAPTCHA: ¿Cuánto es " + n1 + " + " + n2 + "?";
+    document.getElementById("captcha").value = "";
+}
+
+function validarPasswordSegura(clave){
+    return clave.length >= 8 &&
+           /[A-Z]/.test(clave) &&
+           /[0-9]/.test(clave) &&
+           /[!@#$%^&*(),.?":{}|<>_\-]/.test(clave);
+}
+
+function ingresar(){
+    let correo = document.getElementById("correo").value.trim();
+    let clave = document.getElementById("clave").value.trim();
+    let captcha = document.getElementById("captcha").value.trim();
+
+    if(correo === "" || clave === "" || captcha === ""){
+        mostrarAlerta("Complete usuario, contraseña y CAPTCHA.", "error");
+        return;
+    }
+
+    if(!validarPasswordSegura(clave)){
+        mostrarAlerta("La contraseña debe tener mínimo 8 caracteres, una mayúscula, un número y un carácter especial.", "error");
+        return;
+    }
+
+    if(Number(captcha) !== captchaResultado){
+        mostrarAlerta("CAPTCHA incorrecto. Intente nuevamente.", "error");
+        generarCaptcha();
+        return;
+    }
+
+    let datos = new FormData();
+    datos.append("correo", correo);
+    datos.append("clave", clave);
+
+    fetch("login.php", {
+        method: "POST",
+        body: datos
+    })
+    .then(response => response.text())
+    .then(resultado => {
+        if(resultado.trim() === "ok"){
+            usuarioActual = correo;
+
+            document.getElementById("usuarioActivo").innerText = "Usuario: " + usuarioActual;
+            document.getElementById("login").style.display = "none";
+            document.getElementById("sistema").style.display = "block";
+
+            cargarReservas();
+            mostrarAlerta("Bienvenido al sistema.", "ok");
+        }else{
+            mostrarAlerta("Correo o contraseña incorrectos.", "error");
+        }
+    })
+    .catch(error => {
+        console.log(error);
+        mostrarAlerta("Error al conectar con el servidor.", "error");
+    });
+}
+
+function abrirModal(){
+    reservaEditandoId = null;
+    limpiarFormulario();
+
+    document.getElementById("fecha").value = document.getElementById("fechaConsulta").value;
+
+    llenarSelectHoras();
+
+    document.getElementById("modal").style.display = "flex";
+}
+
+function abrirModalDesdeCelda(cancha, hora){
+    let fecha = document.getElementById("fechaConsulta").value;
+    let existente = buscarReserva(fecha, cancha, hora);
+
+    if(existente){
+        mostrarVoucher(existente);
+        return;
+    }
+
+    abrirModal();
+
+    document.getElementById("cancha").value = cancha;
+    document.getElementById("hora").value = hora;
+}
+
+function cerrarModal(){
+    document.getElementById("modal").style.display = "none";
+}
+
+function cerrarVoucher(){
+    document.getElementById("modalVoucher").style.display = "none";
+}
+
+function llenarSelectHoras(){
+    let turno = document.getElementById("turno").value;
+    let selectHora = document.getElementById("hora");
+
+    selectHora.innerHTML = "";
+
+    horariosPorTurno[turno].forEach(h => {
+        let option = document.createElement("option");
+        option.value = h.valor;
+        option.text = h.texto + " - " + h.fin;
+        selectHora.appendChild(option);
+    });
+}
+
+function actualizarVista(){
+    llenarSelectHoras();
+
+    let fecha = document.getElementById("fechaConsulta").value;
+
+    document.getElementById("fechaCalendario").innerText = "Fecha: " + formatearFecha(fecha) + " | Turno: " + textoTurno();
+
+    crearGrid();
+    pintarTabla();
+    actualizarReportes();
+}
+
+function textoTurno(){
+    let turno = document.getElementById("turno").value;
+
+    if(turno === "manana") return "Mañana";
+    if(turno === "tarde") return "Tarde";
+
+    return "Noche";
+}
+
+function crearGrid(){
+    let grid = document.getElementById("gridReservas");
+    let turno = document.getElementById("turno").value;
+    let fecha = document.getElementById("fechaConsulta").value;
+
+    grid.innerHTML = "";
+
+    grid.innerHTML += `<div class="celda cabecera">Hora</div>`;
+
+    for(let c = 1; c <= 4; c++){
+        grid.innerHTML += `<div class="celda cabecera">Cancha ${c}</div>`;
+    }
+
+    horariosPorTurno[turno].forEach(h => {
+        grid.innerHTML += `<div class="celda hora">${h.texto}<br><small>${h.fin}</small></div>`;
+
+        for(let c = 1; c <= 4; c++){
+            let reserva = buscarReserva(fecha, String(c), h.valor);
+
+            if(reserva){
+                grid.innerHTML += `
+                    <div class="celda ocupado" onclick="abrirModalDesdeCelda('${c}', '${h.valor}')">
+                        Reservado<br>
+                        <small>${reserva.cliente}</small>
+                    </div>
+                `;
+            }else{
+                grid.innerHTML += `
+                    <div class="celda libre" onclick="abrirModalDesdeCelda('${c}', '${h.valor}')">
+                        Libre<br>
+                        <small>Click para reservar</small>
+                    </div>
+                `;
+            }
+        }
+    });
+}
+
+function guardarReserva(){
+    let dni = document.getElementById("dni").value.trim();
+    let cliente = document.getElementById("cliente").value.trim();
+    let telefono = document.getElementById("telefono").value.trim();
+    let cancha = document.getElementById("cancha").value;
+    let fecha = document.getElementById("fecha").value;
+    let hora = document.getElementById("hora").value;
+    let pago = document.getElementById("pago").value;
+    let codigoPago = document.getElementById("codigoPago").value.trim();
+    let monto = document.getElementById("monto").value.trim();
+    let detalle = document.getElementById("detalle").value.trim();
+
+    if(dni === "" || cliente === "" || telefono === "" || fecha === "" || codigoPago === "" || monto === ""){
+        mostrarAlerta("No se puede guardar. Complete todos los datos obligatorios.", "error");
+        return;
+    }
+
+    if(telefono.length < 9){
+        mostrarAlerta("El teléfono debe tener al menos 9 dígitos.", "error");
+        return;
+    }
+
+    if(Number(monto) <= 0){
+        mostrarAlerta("El monto pagado debe ser mayor a cero.", "error");
+        return;
+    }
+
+    let reservaOcupada = buscarReserva(fecha, cancha, hora);
+
+    if(reservaOcupada && reservaOcupada.id !== reservaEditandoId){
+        mostrarAlerta("No se puede registrar. La cancha ya está reservada en esa fecha y horario.", "error");
+        return;
+    }
+
+    let horaInfo = obtenerHora(hora);
+
+    let reservaActual = {
+        id: reservaEditandoId || Date.now(),
+        dni: dni,
+        cliente: cliente,
+        telefono: telefono,
+        cancha: cancha,
+        fecha: fecha,
+        hora: hora,
+        horaTexto: horaInfo.texto,
+        horaFin: horaInfo.fin,
+        pago: pago,
+        codigoPago: codigoPago,
+        monto: monto,
+        detalle: detalle,
+        estado: "Confirmado",
+        usuario: usuarioActual,
+        creado: new Date().toLocaleString("es-PE")
+    };
+
+    let datos = new FormData();
+    datos.append("dni", dni);
+    datos.append("cliente", cliente);
+    datos.append("telefono", telefono);
+    datos.append("cancha", cancha);
+    datos.append("fecha", fecha);
+    datos.append("hora", hora);
+    datos.append("pago", pago);
+    datos.append("codigoPago", codigoPago);
+    datos.append("monto", monto);
+    datos.append("detalle", detalle);
+    datos.append("usuario", usuarioActual);
+
+    let archivoPHP = "guardar_reserva.php";
+
+    if(reservaEditandoId){
+        datos.append("id", reservaEditandoId);
+        archivoPHP = "editar_reserva.php";
+    }
+
+    fetch(archivoPHP, {
+        method: "POST",
+        body: datos
+    })
+    .then(response => response.text())
+    .then(resultado => {
+        if(resultado.trim() === "ok"){
+            guardarCliente(dni, cliente, telefono);
+            document.getElementById("fechaConsulta").value = fecha;
+            limpiarFormulario();
+            cerrarModal();
+            cargarReservas();
+
+            if(reservaEditandoId){
+                mostrarAlerta("Reserva actualizada correctamente en la base de datos.", "ok");
+            }else{
+                mostrarAlerta("Reserva registrada correctamente en la base de datos.", "ok");
+                mostrarVoucher(reservaActual);
+            }
+
+            reservaEditandoId = null;
+        }else{
+            mostrarAlerta("Error en MySQL: " + resultado, "error");
+        }
+    })
+    .catch(error => {
+        console.log(error);
+        mostrarAlerta("Error al conectar con el servidor.", "error");
+    });
+}
+
+function cargarReservas(){
+    fetch("listar_reservas.php")
+    .then(response => response.json())
+    .then(data => {
+        reservas = data.map(r => {
+            let horaInfo = obtenerHora(r.hora);
+
+            return {
+                id: Number(r.id),
+                dni: r.dni,
+                cliente: r.cliente,
+                telefono: r.telefono,
+                cancha: String(r.cancha),
+                fecha: r.fecha,
+                hora: String(r.hora),
+                horaTexto: horaInfo ? horaInfo.texto : r.hora,
+                horaFin: horaInfo ? horaInfo.fin : "",
+                pago: r.pago,
+                codigoPago: r.codigo_pago,
+                monto: r.monto,
+                detalle: r.detalle,
+                estado: r.estado,
+                usuario: r.usuario,
+                creado: r.fecha_registro
+            };
+        });
+
+        actualizarVista();
+        actualizarReportes();
+    })
+    .catch(error => {
+        console.log(error);
+        actualizarVista();
+    });
+}
+
+function buscarReserva(fecha, cancha, hora){
+    return reservas.find(r => r.fecha === fecha && r.cancha === String(cancha) && r.hora === String(hora));
+}
+
+function obtenerHora(valor){
+    let todos = [
+        ...horariosPorTurno.manana,
+        ...horariosPorTurno.tarde,
+        ...horariosPorTurno.noche
+    ];
+
+    return todos.find(h => h.valor === String(valor));
+}
+
+function pintarTabla(){
+    let tabla = document.getElementById("tablaReservas");
+    let fecha = document.getElementById("fechaConsulta").value;
+
+    tabla.innerHTML = "";
+
+    let reservasFecha = reservas.filter(r => r.fecha === fecha);
+
+    reservasFecha.forEach(r => {
+        let fila = document.createElement("tr");
+
+        fila.innerHTML = `
+            <td>${r.dni}</td>
+            <td>${r.cliente}</td>
+            <td>${r.telefono}</td>
+            <td>Cancha ${r.cancha}</td>
+            <td>${formatearFecha(r.fecha)}</td>
+            <td>${r.horaTexto} - ${r.horaFin}</td>
+            <td>${r.pago}</td>
+            <td>${r.codigoPago}</td>
+            <td class="estado-confirmado">${r.estado}</td>
+            <td>${r.usuario}</td>
+            <td>
+                <button onclick="editarReserva(${r.id})">✏️</button>
+                <button onclick="eliminarReserva(${r.id})">🗑️</button>
+                <button onclick="mostrarVoucherPorId(${r.id})">🧾</button>
+            </td>
+        `;
+
+        tabla.appendChild(fila);
+    });
+}
+
+function actualizarReportes(){
+    let tabla = document.getElementById("tablaReportes");
+
+    if(!tabla) return;
+
+    tabla.innerHTML = "";
+
+    let fechaInicio = document.getElementById("fechaInicioReporte") ? document.getElementById("fechaInicioReporte").value : "";
+    let fechaFin = document.getElementById("fechaFinReporte") ? document.getElementById("fechaFinReporte").value : "";
+    let turnoReporte = document.getElementById("turnoReporte") ? document.getElementById("turnoReporte").value : "todos";
+    let dniReporte = document.getElementById("buscarDniReporte") ? document.getElementById("buscarDniReporte").value.trim() : "";
+
+    let reservasFiltradas = reservas.filter(r => {
+        let cumpleFechaInicio = fechaInicio === "" || r.fecha >= fechaInicio;
+        let cumpleFechaFin = fechaFin === "" || r.fecha <= fechaFin;
+        let cumpleDni = dniReporte === "" || r.dni.includes(dniReporte);
+        let cumpleTurno = true;
+
+        if(turnoReporte !== "todos"){
+            let horasTurno = horariosPorTurno[turnoReporte].map(h => h.valor);
+            cumpleTurno = horasTurno.includes(String(r.hora));
+        }
+
+        return cumpleFechaInicio && cumpleFechaFin && cumpleDni && cumpleTurno;
+    });
+
+    let totalMonto = 0;
+
+    reservasFiltradas.forEach(r => {
+        totalMonto += Number(r.monto);
+
+        let fila = document.createElement("tr");
+
+        fila.innerHTML = `
+            <td>${r.dni}</td>
+            <td>${r.cliente}</td>
+            <td>${r.telefono}</td>
+            <td>Cancha ${r.cancha}</td>
+            <td>${formatearFecha(r.fecha)}</td>
+            <td>${r.horaTexto} - ${r.horaFin}</td>
+            <td>${r.pago}</td>
+            <td>${r.codigoPago}</td>
+            <td>S/ ${r.monto}</td>
+            <td>${r.usuario}</td>
+            <td>${r.creado}</td>
+        `;
+
+        tabla.appendChild(fila);
+    });
+
+    document.getElementById("reporteTotal").value = reservasFiltradas.length;
+    document.getElementById("reporteMonto").value = "S/ " + totalMonto.toFixed(2);
+    document.getElementById("reporteConfirmadas").value = reservasFiltradas.filter(r => r.estado === "Confirmado").length;
+}
+
+function filtrarUltimosDias(dias){
+    let hoy = new Date();
+    let inicio = new Date();
+    inicio.setDate(hoy.getDate() - (dias - 1));
+
+    document.getElementById("fechaInicioReporte").value = inicio.toISOString().split("T")[0];
+    document.getElementById("fechaFinReporte").value = hoy.toISOString().split("T")[0];
+
+    actualizarReportes();
+}
+
+function limpiarFiltrosReporte(){
+    document.getElementById("fechaInicioReporte").value = "";
+    document.getElementById("fechaFinReporte").value = "";
+    document.getElementById("turnoReporte").value = "todos";
+    document.getElementById("buscarDniReporte").value = "";
+
+    actualizarReportes();
+}
+
+function editarReserva(id){
+    let r = reservas.find(reserva => reserva.id === id);
+
+    if(!r) return;
+
+    reservaEditandoId = id;
+
+    document.getElementById("dni").value = r.dni;
+    document.getElementById("cliente").value = r.cliente;
+    document.getElementById("telefono").value = r.telefono;
+    document.getElementById("cancha").value = r.cancha;
+    document.getElementById("fecha").value = r.fecha;
+    document.getElementById("pago").value = r.pago;
+    document.getElementById("codigoPago").value = r.codigoPago;
+    document.getElementById("monto").value = r.monto;
+    document.getElementById("detalle").value = r.detalle;
+
+    llenarSelectHoras();
+
+    document.getElementById("hora").value = r.hora;
+    document.getElementById("modal").style.display = "flex";
+}
+
+function eliminarReserva(id){
+    if(confirm("¿Desea eliminar esta reserva?")){
+        let datos = new FormData();
+        datos.append("id", id);
+
+        fetch("eliminar_reserva.php", {
+            method: "POST",
+            body: datos
+        })
+        .then(response => response.text())
+        .then(resultado => {
+            if(resultado.trim() === "ok"){
+                reservas = reservas.filter(r => r.id !== id);
+                actualizarVista();
+                actualizarReportes();
+                mostrarAlerta("Reserva eliminada correctamente de la base de datos.", "ok");
+            }else{
+                mostrarAlerta("Error al eliminar: " + resultado, "error");
+            }
+        })
+        .catch(error => {
+            console.log(error);
+            mostrarAlerta("Error al conectar con el servidor.", "error");
+        });
+    }
+}
+
+function mostrarVoucherPorId(id){
+    let reserva = reservas.find(r => r.id === id);
+
+    if(reserva){
+        mostrarVoucher(reserva);
+    }
+}
+
+function mostrarVoucher(reserva){
+    ultimoVoucher = reserva;
+
+    document.getElementById("contenidoVoucher").innerHTML = `
+        <p><b>N° Reserva:</b> ${reserva.id}</p>
+        <p><b>Cliente:</b> ${reserva.cliente}</p>
+        <p><b>DNI:</b> ${reserva.dni}</p>
+        <p><b>Teléfono:</b> ${reserva.telefono}</p>
+        <p><b>Cancha:</b> Cancha ${reserva.cancha}</p>
+        <p><b>Fecha:</b> ${formatearFecha(reserva.fecha)}</p>
+        <p><b>Horario:</b> ${reserva.horaTexto} - ${reserva.horaFin}</p>
+        <p><b>Método de pago:</b> ${reserva.pago}</p>
+        <p><b>Código de pago:</b> ${reserva.codigoPago}</p>
+        <p><b>Monto pagado:</b> S/ ${reserva.monto}</p>
+        <p><b>Estado:</b> ${reserva.estado}</p>
+        <p><b>Registrado por:</b> ${reserva.usuario}</p>
+        <p><b>Fecha de registro:</b> ${reserva.creado}</p>
+        <hr>
+        <p class="mensaje-voucher">
+            Esta constancia valida la reserva de la cancha. 
+            La reserva se confirma con el pago total. No hay devolución.
+        </p>
+    `;
+
+    document.getElementById("modalVoucher").style.display = "flex";
+}
+
+function imprimirVoucher(){
+    window.print();
+}
+
+function imprimirReporte(){
+    window.print();
+}
+
+function compartirWhatsApp(){
+    if(!ultimoVoucher) return;
+
+    let mensaje = `Voucher de Reserva Arena 7%0ACliente: ${ultimoVoucher.cliente}%0ADNI: ${ultimoVoucher.dni}%0ATeléfono: ${ultimoVoucher.telefono}%0ACancha: ${ultimoVoucher.cancha}%0AFecha: ${formatearFecha(ultimoVoucher.fecha)}%0AHorario: ${ultimoVoucher.horaTexto} - ${ultimoVoucher.horaFin}%0APago: ${ultimoVoucher.pago}%0ACódigo: ${ultimoVoucher.codigoPago}%0AMonto: S/ ${ultimoVoucher.monto}%0AEstado: ${ultimoVoucher.estado}`;
+
+    window.open("https://wa.me/?text=" + mensaje, "_blank");
+}
+
+function autocompletarCliente(){
+    let dni = document.getElementById("dni").value.trim();
+    let cliente = clientes.find(c => c.dni === dni);
+
+    if(cliente){
+        document.getElementById("cliente").value = cliente.nombre;
+        document.getElementById("telefono").value = cliente.telefono;
+        mostrarAlerta("Cliente encontrado y datos completados.", "ok");
+    }else{
+        mostrarAlerta("Cliente no encontrado. Ingrese los datos manualmente.", "error");
+    }
+}
+
+function guardarCliente(dni, nombre, telefono){
+    let existe = clientes.find(c => c.dni === dni);
+
+    if(existe){
+        existe.nombre = nombre;
+        existe.telefono = telefono;
+    }else{
+        clientes.push({
+            dni: dni,
+            nombre: nombre,
+            telefono: telefono
+        });
+    }
+}
+
+function buscarCliente(){
+    let dni = document.getElementById("buscarDni").value.trim();
+    let tabla = document.getElementById("tablaReservas");
+    let filas = tabla.getElementsByTagName("tr");
+
+    for(let i = 0; i < filas.length; i++){
+        let celdaDni = filas[i].cells[0].innerText;
+        filas[i].style.display = celdaDni.includes(dni) ? "" : "none";
+    }
+}
+
+function formatearFecha(fecha){
+    if(!fecha) return "";
+
+    let partes = fecha.split("-");
+    return partes[2] + "/" + partes[1] + "/" + partes[0];
+}
+
+function limpiarFormulario(){
+    document.getElementById("dni").value = "";
+    document.getElementById("cliente").value = "";
+    document.getElementById("telefono").value = "";
+    document.getElementById("codigoPago").value = "";
+    document.getElementById("monto").value = "";
+    document.getElementById("detalle").value = "";
+    document.getElementById("cancha").value = "1";
+    document.getElementById("pago").value = "Yape";
+
+    reservaEditandoId = null;
+}
+
+function mostrarAlerta(mensaje, tipo){
+    let alerta = document.getElementById("alerta");
+
+    alerta.innerText = mensaje;
+    alerta.className = "alerta " + tipo;
+    alerta.style.display = "block";
+
+    setTimeout(function(){
+        alerta.style.display = "none";
+    }, 3500);
+}
+</script>
+
+</body>
+</html>

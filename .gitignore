@@ -1,0 +1,15 @@
+# Runtime configuration and local data
+.env
+.env.*
+!.env.example
+*.log
+
+# Editors and operating system files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Dependencies and generated files
+node_modules/
+vendor/

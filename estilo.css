@@ -1,0 +1,552 @@
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family: Arial, sans-serif;
+}
+
+body{
+    background:#eef2f5;
+}
+
+/* LOGIN */
+.login{
+    width:420px;
+    margin:45px auto;
+    background:white;
+    border-radius:10px;
+    box-shadow:0 0 15px #bbb;
+    text-align:center;
+    padding:25px;
+}
+
+.logo{
+    width:180px;
+    margin-bottom:15px;
+}
+
+.login h2{
+    color:#333;
+    margin-bottom:15px;
+}
+
+.login input{
+    width:100%;
+    padding:12px;
+    margin:8px 0;
+    border:1px solid #ccc;
+    border-radius:5px;
+}
+
+.login button{
+    width:100%;
+    padding:12px;
+    background:#00b894;
+    color:white;
+    border:none;
+    border-radius:5px;
+    font-weight:bold;
+    cursor:pointer;
+    margin-top:8px;
+}
+
+.login button:hover{
+    background:#009b7a;
+}
+
+.nota-login{
+    background:#eefaf6;
+    border-left:5px solid #00b894;
+    color:#333;
+    text-align:left;
+    padding:10px;
+    border-radius:5px;
+    margin-bottom:12px;
+    font-size:14px;
+}
+
+.ayuda-password{
+    font-size:12px;
+    color:#555;
+    text-align:left;
+    margin-bottom:8px;
+}
+
+.captcha-box{
+    background:#f7f7f7;
+    border:1px solid #ddd;
+    border-radius:6px;
+    padding:10px;
+    margin:10px 0;
+    text-align:left;
+}
+
+.captcha-box label{
+    font-weight:bold;
+    color:#333;
+}
+
+.btn-secundario{
+    background:#555 !important;
+    font-size:13px;
+}
+
+.btn-secundario:hover{
+    background:#333 !important;
+}
+
+.link-login{
+    margin-top:10px;
+    color:#00b894;
+    cursor:pointer;
+}
+
+/* SISTEMA */
+.sistema{
+    display:none;
+}
+
+.header{
+    min-height:58px;
+    background:#00b894;
+    color:white;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:30px;
+    font-size:22px;
+    font-weight:bold;
+    padding:10px;
+}
+
+#usuarioActivo{
+    font-size:14px;
+    background:white;
+    color:#00b894;
+    padding:6px 10px;
+    border-radius:20px;
+}
+
+.contenedor{
+    display:flex;
+}
+
+.menu{
+    width:240px;
+    min-height:100vh;
+    background:#2f3e46;
+    color:white;
+}
+
+.menu-logo{
+    text-align:center;
+    padding:18px;
+    border-bottom:1px solid #455a64;
+}
+
+.menu-logo img{
+    width:90px;
+    background:white;
+    border-radius:8px;
+}
+
+.menu h3{
+    font-size:15px;
+    margin-top:10px;
+}
+
+.menu ul{
+    list-style:none;
+}
+
+.menu li{
+    padding:14px 20px;
+    border-bottom:1px solid #455a64;
+    cursor:pointer;
+}
+
+.menu li:hover,
+.activo{
+    background:#00b894;
+}
+
+.contenido{
+    flex:1;
+    padding:25px;
+    overflow-x:auto;
+}
+
+.titulo{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:20px;
+}
+
+.titulo h1{
+    color:#333;
+}
+
+.btn{
+    background:#00b894;
+    color:white;
+    border:none;
+    padding:10px 15px;
+    border-radius:5px;
+    cursor:pointer;
+    font-weight:bold;
+}
+
+.btn:hover{
+    background:#009b7a;
+}
+
+/* FILTROS */
+.filtros{
+    background:white;
+    padding:15px;
+    border-radius:8px;
+    box-shadow:0 0 10px #ccc;
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:15px;
+    margin-bottom:20px;
+}
+
+.filtros label{
+    font-weight:bold;
+    color:#333;
+    display:block;
+    margin-bottom:5px;
+}
+
+.filtros input,
+.filtros select{
+    width:100%;
+    padding:10px;
+    border:1px solid #ccc;
+    border-radius:5px;
+}
+
+/* CALENDARIO */
+.calendario{
+    background:white;
+    padding:20px;
+    border-radius:8px;
+    box-shadow:0 0 10px #ccc;
+}
+
+.fecha{
+    text-align:center;
+    font-size:22px;
+    margin-bottom:15px;
+    color:#333;
+    font-weight:bold;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:110px repeat(4, 1fr);
+    border:1px solid #ddd;
+}
+
+.celda{
+    border:1px solid #ddd;
+    padding:14px;
+    text-align:center;
+    background:#fffde7;
+    min-height:70px;
+}
+
+.celda small{
+    font-size:12px;
+}
+
+.cabecera{
+    background:#00b894;
+    color:white;
+    font-weight:bold;
+    min-height:auto;
+}
+
+.hora{
+    background:#f1f1f1;
+    font-weight:bold;
+}
+
+.libre{
+    background:#dfffe8;
+    color:#008f5a;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.libre:hover{
+    background:#baf5cb;
+    transform:scale(1.02);
+}
+
+.ocupado{
+    background:#ffcccc;
+    color:#b00020;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.ocupado:hover{
+    background:#ffb3b3;
+    transform:scale(1.02);
+}
+
+/* TABLA */
+.tabla-reservas{
+    margin-top:25px;
+    background:white;
+    padding:20px;
+    border-radius:8px;
+    box-shadow:0 0 10px #ccc;
+    overflow-x:auto;
+}
+
+.tabla-reservas h2{
+    color:#333;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+    font-size:14px;
+}
+
+th{
+    background:#00b894;
+    color:white;
+    padding:10px;
+}
+
+td{
+    border:1px solid #ddd;
+    padding:9px;
+    text-align:center;
+}
+
+td button{
+    border:none;
+    background:#eef2f5;
+    padding:6px 8px;
+    margin:2px;
+    border-radius:5px;
+    cursor:pointer;
+}
+
+td button:hover{
+    background:#d6e0e6;
+}
+
+.estado-confirmado{
+    color:#008f5a;
+    font-weight:bold;
+}
+
+/* MODAL */
+.modal{
+    display:none;
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background:rgba(0,0,0,.5);
+    justify-content:center;
+    align-items:center;
+    z-index:1000;
+}
+
+.formulario{
+    background:white;
+    width:560px;
+    max-height:90vh;
+    overflow-y:auto;
+    padding:25px;
+    border-radius:8px;
+    box-shadow:0 0 15px #333;
+}
+
+.formulario h2{
+    margin-bottom:15px;
+    color:#333;
+}
+
+.formulario label{
+    font-weight:bold;
+    margin-top:10px;
+    display:block;
+}
+
+.formulario input,
+.formulario select,
+.formulario textarea{
+    width:100%;
+    padding:10px;
+    margin-top:5px;
+    border:1px solid #ccc;
+    border-radius:5px;
+}
+
+.formulario textarea{
+    min-height:70px;
+    resize:vertical;
+}
+
+.grupo-busqueda{
+    display:flex;
+    gap:8px;
+}
+
+.grupo-busqueda input{
+    flex:1;
+}
+
+.grupo-busqueda button{
+    width:110px;
+    margin-top:5px;
+}
+
+.botones{
+    display:flex;
+    gap:10px;
+    margin-top:15px;
+    flex-wrap:wrap;
+}
+
+.cancelar{
+    background:#555;
+}
+
+.cancelar:hover{
+    background:#333;
+}
+
+/* VOUCHER */
+.voucher{
+    background:white;
+    width:480px;
+    max-height:90vh;
+    overflow-y:auto;
+    padding:25px;
+    border-radius:10px;
+    box-shadow:0 0 15px #333;
+}
+
+.voucher-encabezado{
+    text-align:center;
+    border-bottom:2px solid #00b894;
+    padding-bottom:12px;
+    margin-bottom:15px;
+}
+
+.voucher-encabezado img{
+    width:120px;
+    margin-bottom:8px;
+}
+
+.voucher h2{
+    color:#333;
+}
+
+.voucher p{
+    padding:6px 0;
+    color:#333;
+    font-size:15px;
+}
+
+.mensaje-voucher{
+    background:#eefaf6;
+    border-left:5px solid #00b894;
+    padding:10px !important;
+    border-radius:5px;
+    margin-top:10px;
+}
+
+.voucher-botones{
+    justify-content:center;
+}
+
+/* ALERTAS */
+.alerta{
+    display:none;
+    position:fixed;
+    top:20px;
+    right:20px;
+    background:white;
+    padding:15px;
+    box-shadow:0 0 10px #aaa;
+    border-radius:5px;
+    color:#333;
+    font-weight:bold;
+    z-index:2000;
+    max-width:360px;
+}
+
+.alerta.ok{
+    border-left:6px solid #00b894;
+}
+
+.alerta.error{
+    border-left:6px solid #d63031;
+}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+    .contenedor{
+        flex-direction:column;
+    }
+
+    .menu{
+        width:100%;
+        min-height:auto;
+    }
+
+    .filtros{
+        grid-template-columns:1fr;
+    }
+
+    .grid{
+        grid-template-columns:90px repeat(4, 160px);
+        overflow-x:auto;
+    }
+
+    .login{
+        width:90%;
+    }
+
+    .formulario,
+    .voucher{
+        width:90%;
+    }
+}
+
+/* IMPRESIÓN DEL VOUCHER */
+@media print{
+    body *{
+        visibility:hidden;
+    }
+
+    #voucher,
+    #voucher *{
+        visibility:visible;
+    }
+
+    #voucher{
+        position:absolute;
+        left:0;
+        top:0;
+        width:100%;
+        box-shadow:none;
+    }
+
+    .voucher-botones{
+        display:none;
+    }
+}
