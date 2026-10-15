@@ -37,6 +37,21 @@ checkNotification($cash['email'] === $data['email'] && $cash['destino'] === $dat
 checkNotification($cash['estado'] === 'Confirmado' && $cash['evento'] === 'Confirmada' && $cash['notificacion'] === 'Pendiente', 'Efectivo no generó la confirmación.');
 checkNotification(str_contains($cash['mensaje'], 'S/ 60') && str_contains($cash['mensaje'], 'de 08:00 a 09:00') && !str_contains($cash['mensaje'], $data['dni']), 'La confirmación no tiene horario y monto correctos, o expone el DNI.');
 
+$otherClient = $data;
+$otherClient['cliente'] = 'Segundo cliente';
+$otherClient['email'] = 'segundo@example.invalid';
+$otherClient['cancha'] = '4';
+$otherId = $service->create($otherClient, $user);
+$recipients = query($db,
+    'SELECT reserva_id,email,mensaje FROM notificaciones WHERE reserva_id IN (?,?) ORDER BY reserva_id',
+    [$cashId, $otherId]
+)->get_result()->fetch_all(MYSQLI_ASSOC);
+checkNotification(count($recipients) === 2
+    && $recipients[0]['email'] === $data['email']
+    && $recipients[1]['email'] === $otherClient['email']
+    && str_contains($recipients[1]['mensaje'], $otherClient['cliente']),
+    'Dos clientes distintos no conservaron sus destinatarios y mensajes independientes.');
+
 $data['cancha'] = '2';
 $data['pago'] = 'Yape';
 $data['codigoPago'] = 'REFERENCIA-PRUEBA';
@@ -71,4 +86,4 @@ try {
     checkNotification($e->status === 422, 'El correo inválido no devolvió error de validación.');
 }
 
-echo "Notificaciones: destinatario, horario, solicitud pendiente, confirmación, edición y validación OK.\n";
+echo "Notificaciones: destinatarios independientes, horario, solicitud pendiente, confirmación, edición y validación OK.\n";
