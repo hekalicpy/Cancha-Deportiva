@@ -2,6 +2,10 @@
 require_once __DIR__ . '/services/bootstrap.php';
 header('Content-Type: text/plain; charset=utf-8');
 try {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        http_response_code(405);
+        echo 'error'; exit;
+    }
     $correo = strtolower(trim($_POST['correo'] ?? ''));
     $clave = $_POST['clave'] ?? '';
     $u = query($db, 'SELECT id, correo, password, rol FROM usuarios WHERE correo=? LIMIT 1', [$correo])->get_result()->fetch_assoc();

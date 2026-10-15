@@ -1,7 +1,8 @@
 <?php
+require_once __DIR__ . '/VenueLocation.php';
 class NotificationService {
     public function __construct(private mysqli $db) {}
-    public static function maps(): string {return 'https://www.google.com/maps/search/?api=1&query='.rawurlencode('Polideportivo Colegio Melitón Carvajal, Lince, Lima, Perú');}
+    public static function maps(): string {return VenueLocation::details()['mapa'];}
     public function list(): array {return query($this->db,'SELECT id,reserva_id,email,estado,intentos,ultimo_error,creado FROM notificaciones ORDER BY id DESC LIMIT 500')->get_result()->fetch_all(MYSQLI_ASSOC);}
     public function enqueue(int $id): void {
         $r=query($this->db,'SELECT * FROM reservas WHERE id=?',[$id])->get_result()->fetch_assoc();

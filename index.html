@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arena 7 - Sistema de Reservas</title>
-    <link rel="stylesheet" href="estilo.css">
+    <link rel="stylesheet" href="estilo.css?v=ubicacion-2">
 </head>
 <body>
 
@@ -30,6 +30,7 @@
 
     <p class="link-login">¿Olvidé mi contraseña?</p>
     <p class="link-login">Crear nueva cuenta</p>
+    <section class="ubicacion-local" data-ubicacion aria-label="Ubicación del local" aria-live="polite"></section>
 </div>
 
 <!-- SISTEMA -->
@@ -51,10 +52,46 @@
             <ul>
                 <li id="menuReserva" class="activo" onclick="mostrarSeccion('reserva')">⚽ Alquiler / Reserva</li>
                 <li id="menuReportes" onclick="mostrarSeccion('reportes')">📊 Reportes</li>
+                <li id="menuUbicacion"><button type="button" class="menu-ubicacion" onclick="mostrarSeccion('ubicacion')">📍 Ubicación</button></li>
+                <li id="menuAuditoria" style="display:none"><button type="button" class="menu-ubicacion" onclick="mostrarSeccion('auditoria')">🧾 Auditoría</button></li>
             </ul>
         </div>
 
         <div class="contenido">
+
+            <div id="seccionUbicacion" style="display:none;">
+                <div class="titulo"><h1>UBICACIÓN DEL LOCAL</h1></div>
+                <p>Encuentra Arena 7 y consulta cómo llegar al polideportivo.</p>
+                <section class="ubicacion-local" data-ubicacion aria-label="Ubicación del local" aria-live="polite"></section>
+            </div>
+
+            <div id="seccionAuditoria" style="display:none;">
+                <div class="titulo"><h1>HISTORIAL DE AUDITORÍA</h1></div>
+                <p>Consulta accesos, reservas y pagos. Los registros se conservan aunque se cancele una reserva.</p>
+                <form id="filtrosAuditoria" class="filtros" onsubmit="consultarAuditoria(event)">
+                    <div><label for="auditoriaUsuario">Usuario</label><input type="email" id="auditoriaUsuario" placeholder="correo@ejemplo.com"></div>
+                    <div><label for="auditoriaAccion">Acción</label><select id="auditoriaAccion">
+                        <option value="">Todas</option>
+                        <option value="LOGIN_OK">Inicio correcto</option>
+                        <option value="LOGIN_FAIL">Inicio fallido</option>
+                        <option value="RESERVA_CREAR">Reserva creada</option>
+                        <option value="RESERVA_EDITAR">Reserva editada</option>
+                        <option value="RESERVA_CANCELAR">Reserva cancelada</option>
+                        <option value="PAGO_REGISTRAR">Pago registrado</option>
+                        <option value="PAGO_CONFIRMAR_MANUAL">Pago confirmado</option>
+                    </select></div>
+                    <div><label for="auditoriaRecursoId">ID de recurso</label><input type="number" id="auditoriaRecursoId" min="1" placeholder="Número de reserva o pago"></div>
+                    <div><label for="auditoriaDesde">Desde</label><input type="date" id="auditoriaDesde"></div>
+                    <div><label for="auditoriaHasta">Hasta</label><input type="date" id="auditoriaHasta"></div>
+                    <div class="auditoria-botones"><button type="submit" class="btn">Buscar</button><button type="button" class="btn cancelar" onclick="limpiarAuditoria()">Limpiar</button></div>
+                </form>
+                <div class="tabla-reservas">
+                    <h2>Eventos registrados</h2>
+                    <p id="estadoAuditoria" role="status" aria-live="polite"></p>
+                    <table><thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Acción</th><th>Recurso</th><th>ID</th><th>Detalle</th></tr></thead><tbody id="tablaAuditoria"></tbody></table>
+                    <button type="button" id="masAuditoria" class="btn" style="display:none" onclick="cargarMasAuditoria()">Cargar anteriores</button>
+                </div>
+            </div>
 
             <!-- SECCIÓN RESERVA -->
             <div id="seccionReserva">
@@ -271,6 +308,7 @@
         </div>
 
         <div id="contenidoVoucher"></div>
+        <section class="ubicacion-local" data-ubicacion aria-label="Ubicación del local" aria-live="polite"></section>
 
         <div class="botones voucher-botones">
             <button class="btn" onclick="imprimirVoucher()">Imprimir / Guardar PDF</button>
@@ -286,6 +324,7 @@
 let reservaEditandoId = null;
 let captchaResultado = 0;
 let usuarioActual = "";
+let csrfToken = "";
 let ultimoVoucher = null;
 let reservas = [];
 
@@ -334,15 +373,44 @@ window.onload = function(){
     }
 
     llenarSelectHoras();
-    cargarReservas();
+    activarSesion().catch(console.error);
 };
+
+async function activarSesion(){
+    const response = await fetch("api.php/auth/me", {cache:"no-store"});
+    if(!response.ok) return false;
+    const data = await response.json();
+    usuarioActual = data.user.correo;
+    csrfToken = data.csrf;
+    document.getElementById("usuarioActivo").innerText = "Usuario: " + usuarioActual;
+    document.getElementById("menuAuditoria").style.display = data.user.rol === "administrador" ? "" : "none";
+    document.getElementById("login").style.display = "none";
+    document.getElementById("sistema").style.display = "block";
+    cargarReservas();
+    return true;
+}
 
 function mostrarSeccion(seccion){
     document.getElementById("seccionReserva").style.display = "none";
     document.getElementById("seccionReportes").style.display = "none";
+    document.getElementById("seccionUbicacion").style.display = "none";
+    document.getElementById("seccionAuditoria").style.display = "none";
 
     document.getElementById("menuReserva").classList.remove("activo");
     document.getElementById("menuReportes").classList.remove("activo");
+    document.getElementById("menuUbicacion").classList.remove("activo");
+    document.getElementById("menuAuditoria").classList.remove("activo");
+
+    if(seccion === "auditoria"){
+        document.getElementById("seccionAuditoria").style.display = "block";
+        document.getElementById("menuAuditoria").classList.add("activo");
+        cargarAuditoria();
+    }
+
+    if(seccion === "ubicacion"){
+        document.getElementById("seccionUbicacion").style.display = "block";
+        document.getElementById("menuUbicacion").classList.add("activo");
+    }
 
     if(seccion === "reserva"){
         document.getElementById("seccionReserva").style.display = "block";
@@ -403,15 +471,9 @@ function ingresar(){
         body: datos
     })
     .then(response => response.text())
-    .then(resultado => {
+    .then(async resultado => {
         if(resultado.trim() === "ok"){
-            usuarioActual = correo;
-
-            document.getElementById("usuarioActivo").innerText = "Usuario: " + usuarioActual;
-            document.getElementById("login").style.display = "none";
-            document.getElementById("sistema").style.display = "block";
-
-            cargarReservas();
+            if(!await activarSesion()) throw new Error("No se pudo recuperar la sesión.");
             mostrarAlerta("Bienvenido al sistema.", "ok");
         }else{
             mostrarAlerta("Correo o contraseña incorrectos.", "error");
@@ -607,18 +669,21 @@ function guardarReserva(){
 
     fetch(archivoPHP, {
         method: "POST",
+        headers: {"X-CSRF-Token": csrfToken},
         body: datos
     })
-    .then(response => response.text())
-    .then(resultado => {
+    .then(async response => ({resultado: await response.text(), id: response.headers.get("X-Reserva-Id")}))
+    .then(({resultado, id}) => {
         if(resultado.trim() === "ok"){
+            const eraEdicion = reservaEditandoId !== null;
+            if(id) reservaActual.id = Number(id);
             guardarCliente(dni, cliente, telefono);
             document.getElementById("fechaConsulta").value = fecha;
             limpiarFormulario();
             cerrarModal();
             cargarReservas();
 
-            if(reservaEditandoId){
+            if(eraEdicion){
                 mostrarAlerta("Reserva actualizada correctamente en la base de datos.", "ok");
             }else{
                 mostrarAlerta("Reserva registrada correctamente en la base de datos.", "ok");
@@ -638,7 +703,7 @@ function guardarReserva(){
 
 function cargarReservas(){
     fetch("listar_reservas.php")
-    .then(response => response.json())
+    .then(response => {if(!response.ok) throw new Error("No se pudieron cargar las reservas."); return response.json();})
     .then(data => {
         reservas = data.map(r => {
             let horaInfo = obtenerHora(r.hora);
@@ -818,12 +883,13 @@ function editarReserva(id){
 }
 
 function eliminarReserva(id){
-    if(confirm("¿Desea eliminar esta reserva?")){
+    if(confirm("¿Desea cancelar esta reserva? Se conservará en auditoría.")){
         let datos = new FormData();
         datos.append("id", id);
 
         fetch("eliminar_reserva.php", {
             method: "POST",
+            headers: {"X-CSRF-Token": csrfToken},
             body: datos
         })
         .then(response => response.text())
@@ -832,7 +898,7 @@ function eliminarReserva(id){
                 reservas = reservas.filter(r => r.id !== id);
                 actualizarVista();
                 actualizarReportes();
-                mostrarAlerta("Reserva eliminada correctamente de la base de datos.", "ok");
+                mostrarAlerta("Reserva cancelada; su historial se conserva.", "ok");
             }else{
                 mostrarAlerta("Error al eliminar: " + resultado, "error");
             }
@@ -967,5 +1033,7 @@ function mostrarAlerta(mensaje, tipo){
 }
 </script>
 
+<script src="ubicacion.js?v=ubicacion-3" defer></script>
+<script src="auditoria.js?v=1" defer></script>
 </body>
 </html>

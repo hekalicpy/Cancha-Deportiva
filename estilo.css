@@ -527,6 +527,41 @@ td button:hover{
     }
 }
 
+#menuUbicacion,#menuAuditoria{padding:0;}
+.menu-ubicacion{
+    display:block;
+    width:100%;
+    padding:14px 20px;
+    background:transparent;
+    color:inherit;
+    border:0;
+    text-align:left;
+    font:inherit;
+    cursor:pointer;
+}
+.menu-ubicacion:focus-visible{outline:2px solid white;outline-offset:-4px;}
+.ubicacion-local{
+    margin-top:20px;
+    padding:16px;
+    border:1px solid #b8dfd5;
+    border-radius:8px;
+    background:#eefaf6;
+    text-align:left;
+    color:#24473e;
+}
+.ubicacion-local h3{font-size:16px;margin-bottom:8px;}
+.ubicacion-local p{font-size:14px;line-height:1.5;}
+.ubicacion-acciones{margin-top:12px;}
+.ubicacion-acciones a{display:inline-block;text-decoration:none;font-size:14px;}
+.auditoria-botones{display:flex;align-items:end;gap:10px;}
+#estadoAuditoria{margin-top:10px;color:#455a64;}
+#tablaAuditoria td{white-space:normal;word-break:break-word;max-width:380px;text-align:left;}
+#masAuditoria{margin-top:16px;}
+@media print{
+    .ubicacion-local{break-inside:avoid;}
+    .ubicacion-acciones{display:none;}
+}
+
 /* IMPRESIÓN DEL VOUCHER */
 @media print{
     body *{

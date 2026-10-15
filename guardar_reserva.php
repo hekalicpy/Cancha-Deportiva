@@ -1,26 +1,21 @@
 <?php
-include "conexion.php";
-
-$dni = $_POST["dni"];
-$cliente = $_POST["cliente"];
-$telefono = $_POST["telefono"];
-$cancha = $_POST["cancha"];
-$fecha = $_POST["fecha"];
-$hora = $_POST["hora"];
-$pago = $_POST["pago"];
-$codigoPago = $_POST["codigoPago"];
-$monto = $_POST["monto"];
-$detalle = $_POST["detalle"];
-$usuario = $_POST["usuario"];
-
-$sql = "INSERT INTO reservas 
-(dni, cliente, telefono, cancha, fecha, hora, pago, codigo_pago, monto, detalle, usuario)
-VALUES 
-('$dni', '$cliente', '$telefono', '$cancha', '$fecha', '$hora', '$pago', '$codigoPago', '$monto', '$detalle', '$usuario')";
-
-if ($conexion->query($sql) === TRUE) {
-    echo "ok";
-} else {
-    echo "error: " . $conexion->error;
+require __DIR__.'/services/bootstrap.php';
+require __DIR__.'/services/LegacyReservationService.php';
+header('Content-Type: text/plain; charset=utf-8');
+header('Cache-Control: no-store');
+try {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') throw new ApiError('Método no permitido.', 405);
+    $auth = new AuthService($db);
+    $user = $auth->requireUser();
+    $auth->csrf();
+    $id = (new LegacyReservationService($db))->create($_POST, $user);
+    header('X-Reserva-Id: '.$id);
+    echo 'ok';
+} catch (ApiError $e) {
+    http_response_code($e->status);
+    echo $e->getMessage();
+} catch (Throwable $e) {
+    error_log($e);
+    http_response_code(500);
+    echo 'No se pudo guardar la reserva.';
 }
-?>
