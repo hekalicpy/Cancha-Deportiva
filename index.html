@@ -252,10 +252,9 @@
 
         <label>DNI</label>
         <div class="grupo-busqueda">
-            <input type="text" id="dni" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="8 dígitos del DNI">
-            <button type="button" class="btn" id="botonBuscarDni" onclick="autocompletarCliente()">Buscar DNI</button>
+            <input type="text" id="dni" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="8 dígitos del DNI" oninput="programarConsultaDni()">
         </div>
-        <small id="estadoDni" role="status" aria-live="polite">La consulta completa el nombre desde una API externa. Confirme los datos con el documento del cliente.</small>
+        <small id="estadoDni" role="status" aria-live="polite">Al ingresar 8 dígitos se consultará el nombre automáticamente.</small>
 
         <label>Cliente</label>
         <input type="text" id="cliente" placeholder="Nombre y apellido del cliente">
@@ -326,6 +325,10 @@ let reservaEditandoId = null;
 let captchaResultado = 0;
 let usuarioActual = "";
 let csrfToken = "";
+let temporizadorDni = null;
+let versionConsultaDni = 0;
+let dniConsultado = "";
+let nombreAutocompletado = "";
 let ultimoVoucher = null;
 let reservas = [];
 
@@ -858,9 +861,14 @@ function editarReserva(id){
 
     if(!r) return;
 
+    clearTimeout(temporizadorDni);
+    versionConsultaDni++;
+    dniConsultado = "";
+    nombreAutocompletado = "";
     reservaEditandoId = id;
 
     document.getElementById("dni").value = r.dni;
+    document.getElementById("estadoDni").textContent = "Si cambia el DNI, se consultará el nombre automáticamente.";
     document.getElementById("cliente").value = r.cliente;
     document.getElementById("telefono").value = r.telefono;
     document.getElementById("cancha").value = r.cancha;
@@ -955,29 +963,50 @@ function compartirWhatsApp(){
     window.open("https://wa.me/?text=" + mensaje, "_blank");
 }
 
-async function autocompletarCliente(){
+function programarConsultaDni(){
+    const campo = document.getElementById("dni");
+    campo.value = campo.value.replace(/\D/g, "").slice(0, 8);
+    const dni = campo.value;
+    const estado = document.getElementById("estadoDni");
+    clearTimeout(temporizadorDni);
+    versionConsultaDni++;
+    if(dni === dniConsultado) return;
+    if(nombreAutocompletado && document.getElementById("cliente").value === nombreAutocompletado){
+        document.getElementById("cliente").value = "";
+    }
+    nombreAutocompletado = "";
+    if(dni !== dniConsultado) dniConsultado = "";
+    if(dni.length < 8){
+        estado.textContent = "Ingrese los 8 dígitos para consultar el nombre automáticamente.";
+        return;
+    }
+    estado.textContent = "Preparando consulta de DNI…";
+    const version = versionConsultaDni;
+    temporizadorDni = setTimeout(() => autocompletarCliente(version), 500);
+}
+
+async function autocompletarCliente(version = versionConsultaDni){
     const dni = document.getElementById("dni").value.trim();
     const estado = document.getElementById("estadoDni");
-    const boton = document.getElementById("botonBuscarDni");
     if(!/^\d{8}$/.test(dni)){
         estado.textContent = "Ingrese exactamente 8 dígitos.";
         return;
     }
-    boton.disabled = true;
     estado.textContent = "Consultando DNI…";
     try {
         const respuesta = await fetch("api.php/reservas/dni?dni=" + encodeURIComponent(dni), {cache:"no-store"});
         const datos = await respuesta.json();
         if(!respuesta.ok) throw new Error(datos.error || "No se pudo consultar el DNI.");
-        if(document.getElementById("dni").value.trim() !== dni) return;
+        if(version !== versionConsultaDni || document.getElementById("dni").value.trim() !== dni) return;
         document.getElementById("cliente").value = datos.nombre;
+        dniConsultado = dni;
+        nombreAutocompletado = datos.nombre;
         estado.textContent = "Nombre consultado en " + datos.fuente + ". Confirme que el DNI pertenece al cliente.";
         mostrarAlerta("Nombre obtenido de la API de DNI.", "ok");
     } catch(error){
+        if(version !== versionConsultaDni) return;
         estado.textContent = error.message + " Puede ingresar el nombre manualmente.";
         mostrarAlerta("Consulta DNI no disponible.", "error");
-    } finally {
-        boton.disabled = false;
     }
 }
 
@@ -1000,6 +1029,11 @@ function formatearFecha(fecha){
 }
 
 function limpiarFormulario(){
+    clearTimeout(temporizadorDni);
+    versionConsultaDni++;
+    dniConsultado = "";
+    nombreAutocompletado = "";
+    document.getElementById("estadoDni").textContent = "Al ingresar 8 dígitos se consultará el nombre automáticamente.";
     document.getElementById("dni").value = "";
     document.getElementById("cliente").value = "";
     document.getElementById("telefono").value = "";
