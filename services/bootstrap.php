@@ -36,6 +36,7 @@ require_once __DIR__.'/AuditService.php';
 require_once __DIR__.'/AuthService.php';
 require_once __DIR__.'/NotificationService.php';
 require_once __DIR__.'/PaymentService.php';
+require_once __DIR__.'/TariffService.php';
 require_once __DIR__.'/TaypiGateway.php';
 require_once __DIR__.'/GatewayPaymentService.php';
 require_once __DIR__.'/DniService.php';

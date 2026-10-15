@@ -37,14 +37,16 @@ $data = [
     'dni'=>'12345678', 'cliente'=>'Cliente de prueba', 'telefono'=>'987654321',
     'email'=>cfg('TEST_NOTIFICATION_EMAIL', 'cliente@example.invalid'), 'cancha'=>'1',
     'fecha'=>date('Y-m-d', strtotime('+2 days')), 'hora'=>'08',
-    'pago'=>'Efectivo', 'codigoPago'=>'', 'monto'=>'60', 'detalle'=>''
+    'pago'=>'Efectivo', 'codigoPago'=>'', 'monto'=>'40', 'detalle'=>''
 ];
 
 $cashId = $service->create($data, $user);
 $cash = query($db, 'SELECT r.email,r.estado,n.evento,n.email AS destino,n.estado AS notificacion,n.mensaje FROM reservas r JOIN notificaciones n ON n.reserva_id=r.id WHERE r.id=?', [$cashId])->get_result()->fetch_assoc();
 checkNotification($cash['email'] === $data['email'] && $cash['destino'] === $data['email'], 'No se guardó el destinatario.');
 checkNotification($cash['estado'] === 'Confirmado' && $cash['evento'] === 'Confirmada' && $cash['notificacion'] === 'Pendiente', 'Efectivo no generó la confirmación.');
-checkNotification(str_contains($cash['mensaje'], 'S/ 60') && str_contains($cash['mensaje'], 'de 08:00 a 09:00') && !str_contains($cash['mensaje'], $data['dni']), 'La confirmación no tiene horario y monto correctos, o expone el DNI.');
+checkNotification(str_contains($cash['mensaje'], 'S/ 40') && str_contains($cash['mensaje'], 'de 08:00 a 09:00') && !str_contains($cash['mensaje'], $data['dni']), 'La confirmación no tiene horario y monto correctos, o expone el DNI.');
+checkNotification(str_contains($cash['mensaje'], NotificationService::maps()), 'Falta la ubicación exacta en el correo.');
+checkNotification(array_key_exists('enviado_en',(new NotificationService($db))->list($cashId)[0]), 'Falta el estado de entrega con fecha de envío.');
 
 $otherClient = $data;
 $otherClient['cliente'] = 'Segundo cliente';
@@ -68,9 +70,9 @@ $pendingId = $service->create($data, $user);
 $received = query($db, 'SELECT evento,estado,mensaje FROM notificaciones WHERE reserva_id=?', [$pendingId])->get_result()->fetch_assoc();
 checkNotification($received['evento'] === 'Recibida' && $received['estado'] === 'Pendiente', 'La solicitud pendiente no generó el aviso inicial.');
 checkNotification(str_contains($received['mensaje'], 'de 08:00 a 09:00') && str_contains($received['mensaje'], 'NO está confirmada') && !str_contains($received['mensaje'], $data['dni']), 'El aviso inicial no distingue el pago pendiente o expone el DNI.');
-checkNotification(str_contains($received['mensaje'], 'escanea el código QR') && str_contains($received['mensaje'], 'ingresa S/ 60'), 'La solicitud de Yape no explica cómo pagar.');
+checkNotification(str_contains($received['mensaje'], 'escanea el código QR') && str_contains($received['mensaje'], 'ingresa S/ 40'), 'La solicitud de Yape no explica cómo pagar.');
 $payment = query($db, 'SELECT id FROM pagos WHERE reserva_id=?', [$pendingId])->get_result()->fetch_assoc();
-(new PaymentService($db))->confirm((int)$payment['id'], $user);
+(new PaymentService($db))->confirm((int)$payment['id'], $user, 'OPERACION-PRUEBA-1');
 $events = query($db, 'SELECT evento,estado,mensaje FROM notificaciones WHERE reserva_id=? ORDER BY id', [$pendingId])->get_result()->fetch_all(MYSQLI_ASSOC);
 checkNotification(count($events) === 2 && $events[0]['evento'] === 'Recibida' && $events[0]['estado'] === 'Cancelado', 'El aviso inicial sin enviar debe cancelarse al confirmar el pago.');
 checkNotification($events[1]['evento'] === 'Confirmada' && $events[1]['estado'] === 'Pendiente' && str_contains($events[1]['mensaje'], 'de 08:00 a 09:00'), 'La confirmación manual no generó el correo con el horario.');
@@ -79,6 +81,7 @@ $paidNow = $data;
 $paidNow['cancha'] = '4';
 $paidNow['hora'] = '09';
 $paidNow['pagoRecibido'] = '1';
+$paidNow['codigoPago'] = 'OPERACION-PRUEBA-2';
 $paidNowId = $service->create($paidNow, $user);
 $paidNowState = query($db, 'SELECT r.estado AS reserva,p.estado AS pago,n.evento FROM reservas r JOIN pagos p ON p.reserva_id=r.id JOIN notificaciones n ON n.reserva_id=r.id WHERE r.id=?', [$paidNowId])->get_result()->fetch_assoc();
 checkNotification($paidNowState['reserva'] === 'Confirmado' && $paidNowState['pago'] === 'Confirmado'
@@ -114,5 +117,15 @@ try {
 } catch (ApiError $e) {
     checkNotification($e->status === 422, 'El correo inválido no devolvió error de validación.');
 }
+
+query($db,"UPDATE notificaciones SET estado='Cancelado' WHERE reserva_id<>?",[$cashId]);
+query($db,"UPDATE notificaciones SET email='correo-invalido' WHERE reserva_id=?",[$cashId]);
+putenv('GMAIL_ADDRESS=operador@example.invalid');
+putenv('GMAIL_APP_PASSWORD='.str_repeat('x',16));
+(new NotificationService($db))->process();
+$invalid = query($db,'SELECT estado,intentos,ultimo_error FROM notificaciones WHERE reserva_id=?',[$cashId])->get_result()->fetch_assoc();
+checkNotification($invalid['estado']==='Fallido' && (int)$invalid['intentos']===0 && str_contains($invalid['ultimo_error'],'inválido'), 'Un destinatario inválido no debe reintentarse.');
+$oldGmailAddress === false ? putenv('GMAIL_ADDRESS') : putenv('GMAIL_ADDRESS='.$oldGmailAddress);
+$oldGmailPassword === false ? putenv('GMAIL_APP_PASSWORD') : putenv('GMAIL_APP_PASSWORD='.$oldGmailPassword);
 
 echo "Notificaciones: destinatarios, QR adjunto, pago pendiente o recibido, confirmación y validación OK.\n";

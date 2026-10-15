@@ -10,6 +10,8 @@ try {
     $auth->csrf();
     $id = (new LegacyReservationService($db))->create($_POST, $user);
     header('X-Reserva-Id: '.$id);
+    $payment = query($db,'SELECT id FROM pagos WHERE reserva_id=? ORDER BY id DESC LIMIT 1',[$id])->get_result()->fetch_assoc();
+    if ($payment) header('X-Pago-Id: '.$payment['id']);
     echo 'ok';
 } catch (ApiError $e) {
     http_response_code($e->status);

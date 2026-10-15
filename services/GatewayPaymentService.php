@@ -66,8 +66,9 @@ final class GatewayPaymentService {
             if (($event['status'] ?? '') !== 'completed') throw new ApiError('Estado de pago inválido.', 409);
             if (in_array($attempt['estado'], ['Confirmado','Revisar'], true)) return ['ok'=>true];
             $actor = 'TAYPI';
+            $otherApproved = query($this->db,"SELECT id FROM pagos WHERE reserva_id=? AND estado='Confirmado' AND id<>? LIMIT 1",[$reservation['id'],$payment['id']])->get_result()->fetch_assoc();
             if ($payment['estado'] !== 'Pendiente' || $reservation['estado'] !== 'Pendiente'
-                || strtotime($reservation['hold_until']) <= time()) {
+                || strtotime($reservation['hold_until']) <= time() || $otherApproved) {
                 query($this->db,"UPDATE pasarela_pagos SET estado='Revisar' WHERE id=?",[$attempt['id']]);
                 (new AuditService($this->db))->record($actor,'PAGO_PASARELA_TARDIO','pagos',(int)$payment['id'],
                     'Cobro recibido después del vencimiento o cancelación; requiere revisión y posible devolución.');

@@ -2,7 +2,7 @@
 class LegacyReservationService {
     public function __construct(private mysqli $db) {}
 
-    private function fields(array $input): array {
+    private function fields(array $input, bool $new = true): array {
         foreach (['dni', 'cliente', 'telefono', 'cancha', 'fecha', 'hora', 'pago', 'monto'] as $field) {
             if (trim((string)($input[$field] ?? '')) === '') throw new ApiError("Complete el campo $field.");
         }
@@ -16,7 +16,7 @@ class LegacyReservationService {
         $pago = (string)$input['pago'];
         $codigo = trim((string)($input['codigoPago'] ?? ''));
         $detalle = trim((string)($input['detalle'] ?? ''));
-        $monto = $pago === 'Pasarela QR' ? TaypiGateway::amount() : (string)$input['monto'];
+        $monto = $new && $pago === 'Pasarela QR' ? TariffService::amount($hora) : (string)$input['monto'];
         $date = DateTimeImmutable::createFromFormat('!Y-m-d', $fecha);
         if (!preg_match('/^\d{8}$/', $dni) || mb_strlen($cliente) > 150 || !preg_match('/^[+0-9 ()-]{9,20}$/', $telefono)
             || !in_array($cancha, ['1','2','3','4'], true)
@@ -50,7 +50,8 @@ class LegacyReservationService {
     }
 
     public function create(array $input, array $user): int {
-        $fields = $this->fields($input);
+        $fields = $this->fields($input, true);
+        TariffService::validate($fields[5], $fields[8]);
         $paymentValue = $input['pagoRecibido'] ?? ($fields[6] === 'Efectivo' ? '1' : '0');
         $paymentReceived = is_bool($paymentValue) ? ($paymentValue ? '1' : '0') : (string)$paymentValue;
         if (!in_array($paymentReceived, ['0', '1'], true)
@@ -71,7 +72,7 @@ class LegacyReservationService {
                 );
                 $id = $this->db->insert_id;
                 if (!$paid) {
-                    query($this->db, "UPDATE reservas SET estado='Pendiente',hold_until=DATE_ADD(NOW(),INTERVAL 15 MINUTE) WHERE id=?", [$id]);
+                    query($this->db, "UPDATE reservas SET estado='Pendiente',hold_until=DATE_ADD(NOW(),INTERVAL 10 MINUTE) WHERE id=?", [$id]);
                 }
                 (new PaymentService($this->db))->register($id, [
                     'pago'=>$fields[6], 'codigoPago'=>$fields[7], 'monto'=>$fields[8]
@@ -89,7 +90,7 @@ class LegacyReservationService {
     }
 
     public function edit(int $id, array $input, array $user): void {
-        $fields = $this->fields($input);
+        $fields = $this->fields($input, false);
         $identity = $_SESSION['identity'] ?? [];
         $source = ($identity['dni'] ?? null) === $fields[0] && ($identity['nombre'] ?? null) === $fields[1]
             && ($identity['expires'] ?? 0) >= time() ? 'Consulta API' : 'Manual';

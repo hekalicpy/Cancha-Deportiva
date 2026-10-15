@@ -69,7 +69,7 @@
             <div id="seccionNotificaciones" style="display:none;">
                 <div class="titulo"><h1>NOTIFICACIONES DE RESERVA</h1><button type="button" class="btn" onclick="cargarNotificaciones()">Actualizar</button></div>
                 <p id="estadoNotificaciones" role="status" aria-live="polite"></p>
-                <div class="tabla-reservas"><table><thead><tr><th>Reserva</th><th>Aviso</th><th>Correo del cliente</th><th>Estado</th><th>Intentos</th><th>Detalle</th></tr></thead><tbody id="tablaNotificaciones"></tbody></table></div>
+                <div class="tabla-reservas"><table><thead><tr><th>Reserva</th><th>Aviso</th><th>Correo del cliente</th><th>Estado</th><th>Intentos</th><th>Enviado</th><th>Detalle</th></tr></thead><tbody id="tablaNotificaciones"></tbody></table></div>
             </div>
 
             <div id="seccionAuditoria" style="display:none;">
@@ -286,7 +286,7 @@
         <input type="date" id="fecha">
 
         <label>Hora inicial</label>
-        <select id="hora"></select>
+        <select id="hora" onchange="actualizarInstruccionesPago()"></select>
 
         <label>Método de pago</label>
         <select id="pago" onchange="actualizarInstruccionesPago()">
@@ -308,8 +308,8 @@
         <label id="codigoPagoLabel">Código de operación (opcional)</label>
         <input type="text" id="codigoPago" placeholder="Ejemplo: YP123456">
 
-        <label>Monto a cobrar</label>
-        <input type="number" id="monto" placeholder="Monto total a cobrar">
+        <label>Monto a cobrar (según horario)</label>
+        <input type="number" id="monto" placeholder="Monto total a cobrar" readonly>
 
         <label>Detalles</label>
         <textarea id="detalle" placeholder="Ingrese algún detalle de la reserva"></textarea>
@@ -353,7 +353,7 @@ let nombreAutocompletado = "";
 let ultimoVoucher = null;
 let reservas = [];
 let pasarelaDisponible = false;
-let pasarelaMonto = "60.00";
+let tarifas = {dia:"40.00", noche:"60.00"};
 let pasarelaModo = "sandbox";
 function escapeHtml(value){
     return String(value ?? "").replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -416,7 +416,7 @@ async function activarSesion(){
         if(servicesResponse.ok){
             const services = await servicesResponse.json();
             pasarelaDisponible = !!services.pasarela_qr;
-            pasarelaMonto = services.pasarela_monto;
+            tarifas = services.tarifas || tarifas;
             pasarelaModo = services.pasarela_modo;
         }
     } catch(error) { console.error(error); }
@@ -428,6 +428,7 @@ async function activarSesion(){
 function actualizarInstruccionesPago(){
     const metodo = document.getElementById("pago").value;
     const automatica = metodo === "Pasarela QR";
+    const montoHorario = Number(document.getElementById("hora").value) >= 18 ? tarifas.noche : tarifas.dia;
     if(automatica) document.getElementById("pagoRecibido").checked = false;
     document.getElementById("instruccionesYape").style.display = metodo === "Yape" ? "block" : "none";
     document.getElementById("confirmacionPagoManual").style.display = automatica || reservaEditandoId !== null ? "none" : "block";
@@ -439,15 +440,15 @@ function actualizarInstruccionesPago(){
     const aviso = document.getElementById("instruccionesPasarela");
     aviso.style.display = automatica ? "block" : "none";
     if(automatica) aviso.textContent = pasarelaDisponible
-        ? `El QR se generará al guardar por S/ ${pasarelaMonto}. ${pasarelaModo === "sandbox" ? "Modo de prueba: no admite pagos reales." : "El pago se confirmará automáticamente al recibir el aviso verificado."}`
+        ? `El QR se generará al guardar por S/ ${montoHorario}. ${pasarelaModo === "sandbox" ? "Modo de prueba: no admite pagos reales." : "El pago se confirmará automáticamente al recibir el aviso verificado."}`
         : "La pasarela requiere una cuenta de comercio y claves API; el QR personal de Yape sigue disponible por separado.";
     document.getElementById("codigoPagoLabel").style.display = automatica ? "none" : "";
     const codigo = document.getElementById("codigoPago");
     codigo.style.display = automatica ? "none" : "";
     if(automatica) codigo.value = "";
     const monto = document.getElementById("monto");
-    if(automatica){ monto.value = pasarelaMonto; monto.readOnly = true; }
-    else if(monto.readOnly){ monto.value = ""; monto.readOnly = false; }
+    if(reservaEditandoId === null) monto.value = montoHorario;
+    monto.readOnly = true;
 }
 
 function mostrarSeccion(seccion){
@@ -507,7 +508,7 @@ async function cargarNotificaciones(){
         estado.textContent = servicios.correo
             ? "El envío está configurado. «Enviado» significa que el proveedor aceptó el mensaje."
             : "El envío no está configurado: falta activar Gmail o Resend. Los avisos quedan pendientes.";
-        tabla.innerHTML = lista.map(n => `<tr><td>${escapeHtml(n.reserva_id)}</td><td>${escapeHtml(n.evento)}</td><td>${escapeHtml(n.email)}</td><td>${escapeHtml(n.estado)}</td><td>${escapeHtml(n.intentos)}</td><td>${escapeHtml(n.ultimo_error || "")}</td></tr>`).join("") || "<tr><td colspan=\"6\">Aún no hay notificaciones.</td></tr>";
+        tabla.innerHTML = lista.map(n => `<tr><td>${escapeHtml(n.reserva_id)}</td><td>${escapeHtml(n.evento)}</td><td>${escapeHtml(n.email)}</td><td>${escapeHtml(n.estado)}</td><td>${escapeHtml(n.intentos)}</td><td>${escapeHtml(n.enviado_en || "—")}</td><td>${escapeHtml(n.ultimo_error || "")}</td></tr>`).join("") || "<tr><td colspan=\"7\">Aún no hay notificaciones.</td></tr>";
     } catch(error) {
         estado.textContent = "No se pudieron cargar las notificaciones.";
         tabla.innerHTML = "";
@@ -594,6 +595,7 @@ function abrirModalDesdeCelda(cancha, hora){
 
     document.getElementById("cancha").value = cancha;
     document.getElementById("hora").value = hora;
+    actualizarInstruccionesPago();
 }
 
 function cerrarModal(){
@@ -616,6 +618,7 @@ function llenarSelectHoras(){
         option.text = h.texto + " - " + h.fin;
         selectHora.appendChild(option);
     });
+    actualizarInstruccionesPago();
 }
 
 function actualizarVista(){
@@ -701,6 +704,11 @@ function guardarReserva(){
         return;
     }
 
+    if(pagoRecibido && (pago === "Yape" || pago === "Plin") && !codigoPago){
+        mostrarAlerta("Indique el código de operación del pago recibido.", "error");
+        return;
+    }
+
     if(telefono.length < 9){
         mostrarAlerta("El teléfono debe tener al menos 9 dígitos.", "error");
         return;
@@ -772,11 +780,12 @@ function guardarReserva(){
         headers: {"X-CSRF-Token": csrfToken},
         body: datos
     })
-    .then(async response => ({resultado: await response.text(), id: response.headers.get("X-Reserva-Id")}))
-    .then(({resultado, id}) => {
+    .then(async response => ({resultado: await response.text(), id: response.headers.get("X-Reserva-Id"), pagoId: response.headers.get("X-Pago-Id")}))
+    .then(({resultado, id, pagoId}) => {
         if(resultado.trim() === "ok"){
             const eraEdicion = reservaEditandoId !== null;
             if(id) reservaActual.id = Number(id);
+            if(pagoId) reservaActual.pagoId = Number(pagoId);
             document.getElementById("fechaConsulta").value = fecha;
             limpiarFormulario();
             cerrarModal();
@@ -1023,10 +1032,19 @@ function eliminarReserva(id){
 }
 
 async function confirmarPago(id){
-    if(!confirm("Confirme únicamente después de verificar el abono en su cuenta Yape/Plin. ¿Dinero recibido?")) return;
+    const reserva = reservas.find(r => r.pagoId === id);
+    let codigoPago = reserva?.codigoPago || "";
+    if(reserva && (reserva.pago === "Yape" || reserva.pago === "Plin")) {
+        const ingresado = prompt("Código de operación del pago verificado:", codigoPago);
+        if(ingresado === null) return;
+        codigoPago = ingresado.trim();
+        if(!codigoPago){ mostrarAlerta("Indique el código de operación antes de confirmar.", "error"); return; }
+    }
+    if(!confirm("Confirme únicamente después de verificar el dinero recibido. ¿Pago comprobado?")) return;
     try {
         const response = await fetch("api.php/pagos/" + id + "/confirmar", {
-            method:"POST", headers:{"X-CSRF-Token":csrfToken}
+            method:"POST", headers:{"X-CSRF-Token":csrfToken,"Content-Type":"application/json"},
+            body:JSON.stringify({codigoPago})
         });
         const data = await response.json();
         if(!response.ok) throw new Error(data.error || "No se pudo confirmar el pago.");
@@ -1078,6 +1096,7 @@ function mostrarVoucher(reserva){
         ${reserva.pago === "Pasarela QR" && reserva.estado === "Pendiente" && !reserva.qrPasarela ? `<p>QR aún no disponible. Abra de nuevo esta constancia para reintentar.</p>` : ""}
         ${reserva.pago === "Pasarela QR" && reserva.modoPasarela === "sandbox" ? `<p>QR de prueba: no acepta pagos reales.</p>` : ""}
         <p><b>Monto:</b> S/ ${escapeHtml(reserva.monto)}</p>
+        ${reserva.estado === "Confirmado" && reserva.pagoId ? `<p><b>Comprobante:</b> PAGO-${escapeHtml(reserva.pagoId)}</p>` : ""}
         <p><b>Estado:</b> ${escapeHtml(reserva.estado)}</p>
         <p><b>Registrado por:</b> ${escapeHtml(reserva.usuario)}</p>
         <p><b>Fecha de registro:</b> ${escapeHtml(reserva.creado)}</p>
@@ -1215,9 +1234,8 @@ function limpiarFormulario(){
     document.getElementById("detalle").value = "";
     document.getElementById("cancha").value = "1";
     document.getElementById("pago").value = "Yape";
-    actualizarInstruccionesPago();
-
     reservaEditandoId = null;
+    actualizarInstruccionesPago();
 }
 
 function mostrarAlerta(mensaje, tipo){

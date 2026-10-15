@@ -9,7 +9,11 @@ class NotificationService {
         if (cfg('RESEND_API_KEY') !== '' && cfg('MAIL_FROM') !== '') return 'resend';
         return '';
     }
-    public function list(): array {return query($this->db,'SELECT id,reserva_id,evento,email,estado,intentos,ultimo_error,creado FROM notificaciones ORDER BY id DESC LIMIT 500')->get_result()->fetch_all(MYSQLI_ASSOC);}
+    public function list(?int $reservationId=null): array {
+        $sql='SELECT id,reserva_id,evento,email,estado,intentos,ultimo_error,enviado_en,creado FROM notificaciones';
+        if ($reservationId !== null) return query($this->db,$sql.' WHERE reserva_id=? ORDER BY id DESC',[$reservationId])->get_result()->fetch_all(MYSQLI_ASSOC);
+        return query($this->db,$sql.' ORDER BY id DESC LIMIT 500')->get_result()->fetch_all(MYSQLI_ASSOC);
+    }
     public function enqueue(int $id, string $event = 'Confirmada'): void {
         if (!in_array($event, ['Recibida','Confirmada'], true)) throw new InvalidArgumentException('Tipo de notificación inválido.');
         $r=query($this->db,'SELECT * FROM reservas WHERE id=?',[$id])->get_result()->fetch_assoc();
@@ -19,7 +23,7 @@ class NotificationService {
         $end=sprintf('%02d:00', (int)$r['hora'] + 1);
         $date=DateTimeImmutable::createFromFormat('!Y-m-d', $r['fecha'])->format('d/m/Y');
         $intro=$event === 'Recibida'
-            ? "Recibimos tu solicitud de reserva. El pago aún está pendiente; la cancha NO está confirmada.\nEl horario se aparta por 15 minutos desde el registro."
+            ? "Recibimos tu solicitud de reserva. El pago aún está pendiente; la cancha NO está confirmada.\nEl horario se aparta por 10 minutos desde el registro."
             : 'Tu cancha está agendada y confirmada.';
         $status=$event === 'Recibida' ? 'Pendiente de pago o verificación' : 'Confirmada';
         $text="$intro\n\nReserva Arena 7 #$id\nCliente: {$r['cliente']}\nCancha: {$r['cancha']} - {$r['deporte']}\nFecha: $date\nHorario: de $start a $end\nMonto: S/ {$r['monto']}\nEstado: $status\nUbicación: ".self::maps();
@@ -44,8 +48,12 @@ class NotificationService {
         $sent=0;
         try {
             query($this->db,"UPDATE notificaciones n JOIN reservas r ON r.id=n.reserva_id SET n.estado='Cancelado' WHERE n.evento='Recibida' AND n.estado IN ('Pendiente','Error') AND (r.estado<>'Pendiente' OR r.hold_until<=NOW())");
-            $jobs=query($this->db,"SELECT n.*,r.pago AS metodo_pago FROM notificaciones n JOIN reservas r ON r.id=n.reserva_id WHERE n.estado IN ('Pendiente','Error') AND n.intentos<5 AND (n.ultimo_intento IS NULL OR n.ultimo_intento<DATE_SUB(NOW(),INTERVAL 5 MINUTE)) AND ((n.evento='Recibida' AND r.estado='Pendiente' AND r.hold_until>NOW()) OR (n.evento='Confirmada' AND r.estado='Confirmado')) ORDER BY n.id LIMIT 20")->get_result()->fetch_all(MYSQLI_ASSOC);
+            $jobs=query($this->db,"SELECT n.*,r.pago AS metodo_pago FROM notificaciones n JOIN reservas r ON r.id=n.reserva_id WHERE n.estado IN ('Pendiente','Error') AND n.intentos<3 AND (n.ultimo_intento IS NULL OR (n.intentos=1 AND n.ultimo_intento<=DATE_SUB(NOW(),INTERVAL 1 MINUTE)) OR (n.intentos=2 AND n.ultimo_intento<=DATE_SUB(NOW(),INTERVAL 5 MINUTE))) AND ((n.evento='Recibida' AND r.estado='Pendiente' AND r.hold_until>NOW()) OR (n.evento='Confirmada' AND r.estado='Confirmado')) ORDER BY n.id LIMIT 20")->get_result()->fetch_all(MYSQLI_ASSOC);
             foreach($jobs as $job){
+                if (!filter_var($job['email'], FILTER_VALIDATE_EMAIL)) {
+                    query($this->db,"UPDATE notificaciones SET estado='Fallido',ultimo_error='Correo de destino inválido' WHERE id=?",[$job['id']]);
+                    continue;
+                }
                 $current=query($this->db,'SELECT estado,hold_until FROM reservas WHERE id=?',[$job['reserva_id']])->get_result()->fetch_assoc();
                 if (!$current || ($job['evento']==='Recibida' && ($current['estado']!=='Pendiente' || strtotime($current['hold_until'])<=time())) || ($job['evento']==='Confirmada' && $current['estado']!=='Confirmado')) {
                     query($this->db,"UPDATE notificaciones SET estado='Cancelado' WHERE id=?",[$job['id']]);
@@ -54,8 +62,8 @@ class NotificationService {
                 query($this->db,'UPDATE notificaciones SET intentos=intentos+1,ultimo_intento=NOW() WHERE id=?',[$job['id']]);
                 try {
                     $this->send($provider, $job);
-                    query($this->db,"UPDATE notificaciones SET estado='Enviado',ultimo_error=NULL WHERE id=?",[$job['id']]);$sent++;
-                }catch(Throwable $e){query($this->db,"UPDATE notificaciones SET estado='Error',ultimo_error=? WHERE id=?",[$e->getMessage(),$job['id']]);}
+                    query($this->db,"UPDATE notificaciones SET estado='Enviado',ultimo_error=NULL,enviado_en=NOW() WHERE id=?",[$job['id']]);$sent++;
+                }catch(Throwable $e){query($this->db,'UPDATE notificaciones SET estado=?,ultimo_error=? WHERE id=?',[(int)$job['intentos']+1>=3?'Fallido':'Error',$e->getMessage(),$job['id']]);}
             }
         } finally {query($this->db,"SELECT RELEASE_LOCK('arena7_mail')");}
         return ['enviados'=>$sent];

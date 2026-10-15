@@ -6,14 +6,6 @@ final class TaypiGateway {
         return $mode;
     }
 
-    public static function amount(): string {
-        $raw = cfg('QR_AMOUNT_PEN', '60.00');
-        if (!preg_match('/^[0-9]{1,6}(?:\.[0-9]{1,2})?$/', $raw) || (float)$raw < 1) {
-            throw new ApiError('El importe de la pasarela debe ser de al menos S/ 1.00.', 503);
-        }
-        return number_format((float)$raw, 2, '.', '');
-    }
-
     public static function configured(): bool {
         $mode = self::mode();
         $suffix = $mode === 'live' ? 'live' : 'test';

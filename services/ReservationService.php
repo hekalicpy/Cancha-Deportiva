@@ -10,7 +10,7 @@ class ReservationService {
         if(($d['pago']??'')==='Pasarela QR') {
             if(!TaypiGateway::configured()) throw new ApiError('La pasarela todavía no está configurada.',503);
             if(!empty($d['codigoPago'])) throw new ApiError('El código de la pasarela lo genera el proveedor.');
-            $d['monto']=TaypiGateway::amount();
+            if($id===null) $d['monto']=TariffService::amount((string)$d['hora']);
         }
         if(!preg_match('/^\d{8}$/',$d['dni'])) throw new ApiError('DNI inválido: se requieren 8 dígitos.');
         if(!preg_match('/^[+0-9 ()-]{9,20}$/',$d['telefono'])) throw new ApiError('Teléfono inválido.');
@@ -18,6 +18,7 @@ class ReservationService {
         $dt=DateTimeImmutable::createFromFormat('!Y-m-d',$d['fecha']);
         if(!$dt||$dt->format('Y-m-d')!==$d['fecha']||$d['fecha']<date('Y-m-d')) throw new ApiError('Seleccione una fecha válida que no sea pasada.');
         if(!in_array($d['pago'],['Yape','Plin','Efectivo','Pasarela QR'],true)||!is_numeric($d['monto'])||(float)$d['monto']<=0||(float)$d['monto']>999999.99) throw new ApiError('Método de pago o monto inválido.');
+        if($id===null) TariffService::validate((string)$d['hora'], (string)$d['monto']);
         if(!in_array($d['deporte']??'Fútbol',['Fútbol','Vóley'],true)) throw new ApiError('Deporte inválido.');
         if(!empty($d['email'])&&!filter_var($d['email'],FILTER_VALIDATE_EMAIL)) throw new ApiError('Correo de cliente inválido.');
         foreach(['cliente'=>150,'codigoPago'=>100,'detalle'=>2000,'email'=>254] as $key=>$max) if(mb_strlen($d[$key]??'')>$max) throw new ApiError("El campo $key es demasiado largo.");
@@ -37,7 +38,7 @@ class ReservationService {
             $verified=($identity['dni']??null)===$d['dni']&&($identity['nombre']??null)===$d['cliente']&&($identity['expires']??0)>=time();
             $values=[$d['dni'],$d['cliente'],$d['telefono'],$d['cancha'],$d['fecha'],$d['hora'],$d['pago'],$d['codigoPago']??'',$d['monto'],$d['detalle']??'',$user['correo'],$d['email']??'',$d['deporte']??'Fútbol',$verified?'Consulta API':'Manual'];
             if($id){query($this->db,'UPDATE reservas SET dni=?,cliente=?,telefono=?,cancha=?,fecha=?,hora=?,pago=?,codigo_pago=?,monto=?,detalle=?,usuario=?,email=?,deporte=?,identidad=? WHERE id=?',[...$values,$id]);(new NotificationService($this->db))->enqueue($id,$old['estado']==='Confirmado'?'Confirmada':'Recibida');}
-            else {query($this->db,"INSERT INTO reservas (dni,cliente,telefono,cancha,fecha,hora,pago,codigo_pago,monto,detalle,usuario,email,deporte,identidad,estado,hold_until) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Pendiente',DATE_ADD(NOW(),INTERVAL 15 MINUTE))",$values);$id=$this->db->insert_id;(new PaymentService($this->db))->register($id,$d,$user,$paymentReceived==='1');if($paymentReceived==='0')(new NotificationService($this->db))->enqueue($id,'Recibida');}
+            else {query($this->db,"INSERT INTO reservas (dni,cliente,telefono,cancha,fecha,hora,pago,codigo_pago,monto,detalle,usuario,email,deporte,identidad,estado,hold_until) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Pendiente',DATE_ADD(NOW(),INTERVAL 10 MINUTE))",$values);$id=$this->db->insert_id;(new PaymentService($this->db))->register($id,$d,$user,$paymentReceived==='1');if($paymentReceived==='0')(new NotificationService($this->db))->enqueue($id,'Recibida');}
             (new AuditService($this->db))->record($user['correo'],$old?'RESERVA_EDITAR':'RESERVA_CREAR','reservas',$id);
             return query($this->db,'SELECT * FROM reservas WHERE id=?',[$id])->get_result()->fetch_assoc();
         });} finally {query($this->db,"SELECT RELEASE_LOCK('arena7_reservas')");}

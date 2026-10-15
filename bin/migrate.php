@@ -5,7 +5,10 @@ foreach(['email'=>"VARCHAR(254) NOT NULL DEFAULT ''",'deporte'=>"VARCHAR(20) NOT
     $found=$db->query("SHOW COLUMNS FROM reservas LIKE '".$db->real_escape_string($name)."'")->num_rows;
     if(!$found) $db->query("ALTER TABLE reservas ADD COLUMN $name $definition");
 }
-$db->query("CREATE TABLE IF NOT EXISTS notificaciones (id INT AUTO_INCREMENT PRIMARY KEY,reserva_id INT NOT NULL,evento VARCHAR(20) NOT NULL DEFAULT 'Confirmada',email VARCHAR(254) NOT NULL,mensaje TEXT NOT NULL,estado VARCHAR(30) NOT NULL,intentos INT NOT NULL DEFAULT 0,ultimo_error TEXT NULL,ultimo_intento DATETIME NULL,creado TIMESTAMP DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY uq_notificaciones_reserva_evento (reserva_id,evento)) ENGINE=InnoDB");
+$db->query("CREATE TABLE IF NOT EXISTS notificaciones (id INT AUTO_INCREMENT PRIMARY KEY,reserva_id INT NOT NULL,evento VARCHAR(20) NOT NULL DEFAULT 'Confirmada',email VARCHAR(254) NOT NULL,mensaje TEXT NOT NULL,estado VARCHAR(30) NOT NULL,intentos INT NOT NULL DEFAULT 0,ultimo_error TEXT NULL,ultimo_intento DATETIME NULL,enviado_en DATETIME NULL,creado TIMESTAMP DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY uq_notificaciones_reserva_evento (reserva_id,evento)) ENGINE=InnoDB");
+if (!$db->query("SHOW COLUMNS FROM notificaciones LIKE 'enviado_en'")->num_rows) {
+    $db->query("ALTER TABLE notificaciones ADD COLUMN enviado_en DATETIME NULL AFTER ultimo_intento");
+}
 if (!$db->query("SHOW COLUMNS FROM notificaciones LIKE 'evento'")->num_rows) {
     $db->query("ALTER TABLE notificaciones ADD COLUMN evento VARCHAR(20) NOT NULL DEFAULT 'Confirmada' AFTER reserva_id");
 }

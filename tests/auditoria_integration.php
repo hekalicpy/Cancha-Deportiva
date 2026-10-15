@@ -18,7 +18,7 @@ $day = date('Y-m-d', strtotime('+2 days'));
 $data = [
     'dni'=>'12345678', 'cliente'=>'Prueba Auditoría', 'telefono'=>'987654321',
     'cancha'=>'1', 'fecha'=>$day, 'hora'=>'08', 'pago'=>'Efectivo',
-    'codigoPago'=>'', 'monto'=>'50', 'detalle'=>'Prueba aislada'
+    'codigoPago'=>'', 'monto'=>'40', 'detalle'=>'Prueba aislada'
 ];
 
 $id = $service->create($data, $user);
