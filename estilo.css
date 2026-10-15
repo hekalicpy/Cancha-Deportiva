@@ -426,6 +426,17 @@ td button:hover{
     color:#8b3300;
     border-left:4px solid #e67e22;
 }
+.instrucciones-yape{
+    margin:10px 0 14px;
+    padding:12px;
+    border:1px solid #c9d8f1;
+    border-radius:6px;
+    background:#f2f6ff;
+    line-height:1.5;
+}
+.instrucciones-yape strong{display:block;}
+.instrucciones-yape small{display:block;margin-top:8px;}
+.instrucciones-yape button{margin-top:8px;}
 
 .botones{
     display:flex;

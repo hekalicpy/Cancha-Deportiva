@@ -277,11 +277,16 @@
         <select id="hora"></select>
 
         <label>Método de pago</label>
-        <select id="pago">
+        <select id="pago" onchange="actualizarInstruccionesPago()">
             <option>Yape</option>
             <option>Plin</option>
             <option>Efectivo</option>
         </select>
+        <div id="instruccionesYape" class="instrucciones-yape" role="status">
+            <strong>Yapear al <span id="numeroYape">Cargando…</span></strong>
+            <button type="button" class="btn-secundario" onclick="copiarNumeroYape()">Copiar número</button>
+            <small>Comprueba en tu Yape el abono, el monto y el código de seguridad de 3 dígitos de la notificación antes de confirmar. El código escrito por el cliente no basta.</small>
+        </div>
 
         <label>Código de operación / pago</label>
         <input type="text" id="codigoPago" placeholder="Ejemplo: YP123456">
@@ -330,6 +335,7 @@ let dniConsultado = "";
 let nombreAutocompletado = "";
 let ultimoVoucher = null;
 let reservas = [];
+let destinoYape = "";
 function escapeHtml(value){
     return String(value ?? "").replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 }
@@ -387,7 +393,30 @@ async function activarSesion(){
     document.getElementById("login").style.display = "none";
     document.getElementById("sistema").style.display = "block";
     cargarReservas();
+    cargarDestinoYape().catch(console.error);
     return true;
+}
+
+async function cargarDestinoYape(){
+    const response = await fetch("api.php/servicios", {cache:"no-store"});
+    if(!response.ok) throw new Error("No se pudo consultar el destino de Yape.");
+    const data = await response.json();
+    if(!/^9\d{8}$/.test(data.yape_numero || "")) throw new Error("El número de Yape no es válido.");
+    destinoYape = data.yape_numero;
+    actualizarInstruccionesPago();
+}
+
+function actualizarInstruccionesPago(){
+    document.getElementById("instruccionesYape").style.display = document.getElementById("pago").value === "Yape" ? "block" : "none";
+    document.getElementById("numeroYape").textContent = destinoYape || "No disponible";
+}
+
+async function copiarNumeroYape(){
+    if(!destinoYape) return mostrarAlerta("No se pudo consultar el número de Yape.", "error");
+    try {
+        await navigator.clipboard.writeText(destinoYape);
+        mostrarAlerta("Número de Yape copiado.", "ok");
+    } catch(error) { mostrarAlerta("No se pudo copiar. Use el número mostrado.", "error"); }
 }
 
 function mostrarSeccion(seccion){
@@ -483,6 +512,7 @@ function abrirModal(){
     reservaEditandoId = null;
     limpiarFormulario();
     verificarDisponibilidadDni();
+    if(!destinoYape) cargarDestinoYape().catch(console.error);
 
     document.getElementById("fecha").value = document.getElementById("fechaConsulta").value;
 
@@ -611,6 +641,10 @@ function guardarReserva(){
 
     if(Number(monto) <= 0){
         mostrarAlerta("El monto a cobrar debe ser mayor a cero.", "error");
+        return;
+    }
+    if(pago === "Yape" && !destinoYape){
+        mostrarAlerta("Aún no se pudo verificar el número de destino de Yape.", "error");
         return;
     }
 
@@ -874,6 +908,7 @@ function editarReserva(id){
     document.getElementById("cancha").value = r.cancha;
     document.getElementById("fecha").value = r.fecha;
     document.getElementById("pago").value = r.pago;
+    actualizarInstruccionesPago();
     document.getElementById("codigoPago").value = r.codigoPago;
     document.getElementById("monto").value = r.monto;
     document.getElementById("detalle").value = r.detalle;
@@ -945,6 +980,7 @@ function mostrarVoucher(reserva){
         <p><b>Fecha:</b> ${formatearFecha(reserva.fecha)}</p>
         <p><b>Horario:</b> ${reserva.horaTexto} - ${reserva.horaFin}</p>
         <p><b>Método de pago:</b> ${escapeHtml(reserva.pago)}</p>
+        ${reserva.pago === "Yape" && reserva.estado !== "Confirmado" ? `<p><b>Yapear al:</b> ${escapeHtml(destinoYape || "Consultar con el administrador")}</p>` : ""}
         <p><b>Código de pago:</b> ${escapeHtml(reserva.codigoPago)}</p>
         <p><b>Monto:</b> S/ ${escapeHtml(reserva.monto)}</p>
         <p><b>Estado:</b> ${escapeHtml(reserva.estado)}</p>
@@ -971,6 +1007,9 @@ function compartirWhatsApp(){
     if(!ultimoVoucher) return;
 
     let mensaje = `Reserva Arena 7 #${ultimoVoucher.id}\nCancha: ${ultimoVoucher.cancha}\nFecha: ${formatearFecha(ultimoVoucher.fecha)}\nHorario: ${ultimoVoucher.horaTexto} - ${ultimoVoucher.horaFin}\nEstado: ${ultimoVoucher.estado}`;
+    if(ultimoVoucher.pago === "Yape" && ultimoVoucher.estado === "Pendiente" && destinoYape){
+        mensaje += `\nYapear S/ ${ultimoVoucher.monto} al ${destinoYape}. Verificaremos el abono antes de confirmar.`;
+    }
 
     window.open("https://wa.me/?text=" + encodeURIComponent(mensaje), "_blank", "noopener,noreferrer");
 }
@@ -1082,6 +1121,7 @@ function limpiarFormulario(){
     document.getElementById("detalle").value = "";
     document.getElementById("cancha").value = "1";
     document.getElementById("pago").value = "Yape";
+    actualizarInstruccionesPago();
 
     reservaEditandoId = null;
 }

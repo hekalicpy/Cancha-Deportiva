@@ -55,7 +55,9 @@ Si falla la carga, la interfaz ofrece reintentar. Esto no activa el envío de co
 
 ### Pagos Yape y Plin
 
-El código de operación ingresado por el administrador es solo una referencia. La reserva queda `Pendiente` durante 15 minutos y el botón 💰 permite confirmarla **únicamente después de revisar el abono en la cuenta del comercio**. Un código escrito en el formulario no prueba que se haya pagado. La constancia muestra explícitamente si sigue pendiente.
+Los pagos por Yape se indican al número **989518266** (configurable mediante `YAPE_PHONE`). El formulario muestra el destino y permite copiarlo; la constancia pendiente y el mensaje para compartir incluyen el número y el monto, sin DNI ni referencia privada. El código de operación ingresado por el administrador es solo una referencia. La reserva queda `Pendiente` durante 15 minutos y el botón 💰 permite confirmarla **únicamente después de revisar el abono en la cuenta del comercio**. Un código escrito en el formulario no prueba que se haya pagado. La constancia muestra explícitamente si sigue pendiente. Para Plin no se anuncia ningún número de destino.
+
+Un número de celular por sí solo no proporciona una API de Yape para consultar transferencias entrantes. Según la [ayuda oficial de Yape](https://www.yape.com.pe/preguntas-frecuentes/enviar-y-recibir-yapeos/como-cobrar-con-yape), el cobro directo se hace desde la aplicación usando número o QR y la confirmación se comprueba en la cuenta receptora. Por eso esta integración dirige el pago al número indicado y conserva la verificación manual; no afirma validar automáticamente transferencias.
 
 Existe un [SDK PHP abierto de TAYPI](https://github.com/neoevsys/taypi-php) para [QR interoperables con Yape y Plin](https://docs.taypi.pe/). El código del SDK es libre, pero los cobros reales requieren una cuenta de comercio, claves API y condiciones comerciales del proveedor. Todavía no se han configurado esas claves ni una pasarela de cobro automático en este proyecto. No use repositorios que simulan pagos o claves de terceros como prueba de una transferencia real.
 

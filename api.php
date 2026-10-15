@@ -17,7 +17,7 @@ try {
     $user=$auth->privateData();if($method!=='GET') $auth->csrf();
     if($route==='auth/me'&&$method==='GET') respond(['user'=>$user,'csrf'=>$_SESSION['csrf']]);
     if($route==='auth/logout'&&$method==='POST') {session_destroy();respond(['ok'=>true]);}
-    if($route==='servicios'&&$method==='GET') respond(['dni'=>cfg('RENIEC_TOKEN')!=='','correo'=>cfg('RESEND_API_KEY')!=='','pagos'=>'Registro manual con confirmación del administrador','maps'=>NotificationService::maps()]);
+    if($route==='servicios'&&$method==='GET') respond(['dni'=>cfg('RENIEC_TOKEN')!=='','correo'=>cfg('RESEND_API_KEY')!=='','pagos'=>'Registro manual con confirmación del administrador','yape_numero'=>cfg('YAPE_PHONE','989518266'),'maps'=>NotificationService::maps()]);
     $reservations=new ReservationService($db);
     if($route==='reservas'&&$method==='GET') respond($reservations->list());
     if($route==='reservas'&&$method==='POST') respond($reservations->save($input,$user),201);
