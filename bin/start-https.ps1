@@ -9,6 +9,16 @@ $php = (Get-Command php -ErrorAction Stop).Source
 $phpCgi = Join-Path (Split-Path $php) 'php-cgi.exe'
 if (-not (Test-Path -LiteralPath $phpCgi)) { throw 'No se encontró php-cgi.exe junto a php.exe.' }
 
+function Start-ArenaPhpCgi {
+    # A desktop app or an already-open terminal may have an older environment
+    # than the user's saved Gmail settings. Load them only into this process.
+    foreach ($name in @('GMAIL_ADDRESS', 'GMAIL_APP_PASSWORD', 'RESEND_API_KEY', 'MAIL_FROM')) {
+        $value = [Environment]::GetEnvironmentVariable($name, 'User')
+        if ($null -ne $value) { [Environment]::SetEnvironmentVariable($name, $value, 'Process') }
+    }
+    Start-Process -FilePath $phpCgi -ArgumentList '-b', '127.0.0.1:9000' -WorkingDirectory $project -WindowStyle Hidden -PassThru
+}
+
 New-Item -ItemType Directory -Path $runtime -Force | Out-Null
 if (-not (Test-Path -LiteralPath $caddy)) {
     Write-Host 'Descargando Caddy desde caddyserver.com...'
@@ -63,6 +73,24 @@ if ($existingHttps) {
     if ($existingProcess.Name -ne 'caddy.exe' -or $existingProcess.CommandLine -notlike "*$config*") {
         throw 'El puerto HTTPS 8443 está ocupado por otro programa.'
     }
+    $existingPhpListener = Get-NetTCPConnection -LocalPort 9000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($existingPhpListener) {
+        $existingPhp = Get-CimInstance Win32_Process -Filter "ProcessId = $($existingPhpListener.OwningProcess)"
+        if ($existingPhp.Name -ne 'php-cgi.exe' -or $existingPhp.ExecutablePath -ne $phpCgi -or $existingPhp.CommandLine -notmatch '127\.0\.0\.1:9000') {
+            throw 'El puerto PHP 9000 está ocupado por otro programa.'
+        }
+        Stop-Process -Id $existingPhp.ProcessId
+        for ($attempt = 0; $attempt -lt 20; $attempt++) {
+            if (-not (Get-NetTCPConnection -LocalPort 9000 -State Listen -ErrorAction SilentlyContinue)) { break }
+            Start-Sleep -Milliseconds 100
+        }
+        if (Get-NetTCPConnection -LocalPort 9000 -State Listen -ErrorAction SilentlyContinue) {
+            throw 'PHP no liberó el puerto 9000.'
+        }
+    }
+    $cgiProcess = Start-ArenaPhpCgi
+    Start-Sleep -Milliseconds 500
+    if ($cgiProcess.HasExited) { throw 'PHP FastCGI no pudo reiniciarse.' }
     Write-Host 'Arena 7 ya está funcionando en https://localhost:8443/'
     $rootCert = Join-Path $env:APPDATA 'Caddy\pki\authorities\local\root.crt'
     if (Test-Path -LiteralPath $rootCert) {
@@ -89,7 +117,7 @@ foreach ($port in 8000, 8443, 9000) {
     }
 }
 
-$cgiProcess = Start-Process -FilePath $phpCgi -ArgumentList '-b', '127.0.0.1:9000' -WorkingDirectory $project -WindowStyle Hidden -PassThru
+$cgiProcess = Start-ArenaPhpCgi
 try {
     Start-Sleep -Seconds 1
     if ($cgiProcess.HasExited) { throw 'PHP FastCGI no pudo iniciarse.' }
