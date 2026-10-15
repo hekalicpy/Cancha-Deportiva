@@ -494,7 +494,7 @@ async function cargarNotificaciones(){
         const lista = await listaResponse.json();
         estado.textContent = servicios.correo
             ? "El envío está configurado. «Enviado» significa que el proveedor aceptó el mensaje."
-            : "El envío no está configurado: falta la cuenta de correo y su dominio remitente. Las confirmaciones quedan pendientes.";
+            : "El envío no está configurado: falta activar Gmail o Resend. Las confirmaciones quedan pendientes.";
         tabla.innerHTML = lista.map(n => `<tr><td>${escapeHtml(n.reserva_id)}</td><td>${escapeHtml(n.email)}</td><td>${escapeHtml(n.estado)}</td><td>${escapeHtml(n.intentos)}</td><td>${escapeHtml(n.ultimo_error || "")}</td></tr>`).join("") || "<tr><td colspan=\"5\">Aún no hay notificaciones.</td></tr>";
     } catch(error) {
         estado.textContent = "No se pudieron cargar las notificaciones.";

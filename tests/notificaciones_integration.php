@@ -12,11 +12,21 @@ function checkNotification(bool $ok, string $message): void {
     if (!$ok) throw new RuntimeException($message);
 }
 
+$oldGmailAddress = getenv('GMAIL_ADDRESS');
+$oldGmailPassword = getenv('GMAIL_APP_PASSWORD');
+putenv('GMAIL_ADDRESS=operador@example.invalid');
+putenv('GMAIL_APP_PASSWORD='.str_repeat('x', 16));
+checkNotification(NotificationService::provider() === 'gmail', 'No se activó el transporte SMTP de Gmail.');
+require_once __DIR__.'/../vendor/autoload.php';
+checkNotification(class_exists(\PHPMailer\PHPMailer\PHPMailer::class), 'Falta PHPMailer.');
+$oldGmailAddress === false ? putenv('GMAIL_ADDRESS') : putenv('GMAIL_ADDRESS='.$oldGmailAddress);
+$oldGmailPassword === false ? putenv('GMAIL_APP_PASSWORD') : putenv('GMAIL_APP_PASSWORD='.$oldGmailPassword);
+
 $user = ['correo'=>'operador@example.invalid', 'rol'=>'administrador'];
 $service = new LegacyReservationService($db);
 $data = [
     'dni'=>'12345678', 'cliente'=>'Cliente de prueba', 'telefono'=>'987654321',
-    'email'=>'cliente@example.invalid', 'cancha'=>'1',
+    'email'=>cfg('TEST_NOTIFICATION_EMAIL', 'cliente@example.invalid'), 'cancha'=>'1',
     'fecha'=>date('Y-m-d', strtotime('+2 days')), 'hora'=>'08',
     'pago'=>'Efectivo', 'codigoPago'=>'', 'monto'=>'60', 'detalle'=>''
 ];

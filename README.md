@@ -10,6 +10,7 @@ El portal conserva sus endpoints PHP originales. La nueva API de cinco servicios
 
 - PHP 8.2 con extensiones `mysqli` y `curl`.
 - MySQL o MariaDB.
+- Composer para instalar PHPMailer cuando se usa Gmail.
 
 ## Inicio local
 
@@ -19,6 +20,8 @@ El portal conserva sus endpoints PHP originales. La nueva API de cinco servicios
    ```powershell
    php bin/migrate.php
    ```
+
+   Para el envío por Gmail, instale también las dependencias con `composer install`.
 
 3. Inicie el servidor:
 
@@ -91,6 +94,8 @@ Las claves de proveedores externos nunca deben incorporarse al repositorio. Use 
 
 El formulario de reservas permite ingresar el correo del cliente. Se valida y guarda en la base de datos; no se envía el DNI en el mensaje. Al registrar una reserva en efectivo o confirmar un pago pendiente se crea una notificación. Una reserva sin correo queda marcada `Sin correo`; si se añade antes del primer envío, pasa a `Pendiente`. El menú «Notificaciones» muestra al administrador el destinatario, estado e intentos. `Enviado` indica que el proveedor aceptó el correo, no que el destinatario ya lo leyó o que llegó a su bandeja de entrada.
 
-Para enviar correos reales se necesita una cuenta de [Resend](https://resend.com/), una clave API de envío y un [dominio propio verificado](https://resend.com/docs/dashboard/domains/introduction). Configure `RESEND_API_KEY` y `MAIL_FROM` (por ejemplo, `reservas@su-dominio.com`) como variables de entorno del proceso PHP, fuera del repositorio. El correo del cliente es el destinatario, no la cuenta remitente. Inicie o reinicie PHP después de configurar las variables. Ejecute `php bin/notificaciones.php` para procesar la cola; en una instalación permanente programe ese comando cada minuto con el programador de tareas del servidor. Si el equipo está apagado, el proceso no puede enviar hasta volver a ejecutarse.
+Para enviar mediante Gmail, active la [verificación en dos pasos y cree una contraseña de aplicación](https://support.google.com/mail/answer/185833). En Windows, ejecute `pwsh -File .\bin\configurar_gmail.ps1`: el programa pide la cuenta remitente y la contraseña de aplicación con entrada oculta, envía una prueba a esa misma cuenta y solo si Gmail la acepta guarda `GMAIL_ADDRESS` y `GMAIL_APP_PASSWORD` en las variables de entorno del usuario. No escriba la clave en el chat ni use la contraseña habitual de Google. Las variables de usuario no se publican en GitHub, pero los procesos del mismo usuario de Windows pueden leerlas; proteja la sesión del equipo. También puede configurar esas dos variables por otros medios seguros. Gmail usa SMTP cifrado en `smtp.gmail.com:465`; PHPMailer mantiene activada la verificación TLS. El correo del cliente es el destinatario, no la cuenta remitente. Si no se dispone de una contraseña de aplicación, Google puede impedir este método.
 
-`php tests/notificaciones_integration.php` comprueba destinatario, cola, confirmación y validación con tablas temporales, sin enviar correos. Para una prueba real use una reserva de prueba con un correo que controle, confirme el pago cuando corresponda, ejecute el procesador y revise tanto el estado en el menú como la bandeja del destinatario. Sin clave API y remitente verificado, las notificaciones se conservan como `Pendiente` y no se afirma que se hayan entregado.
+Resend sigue disponible como alternativa: requiere una [cuenta](https://resend.com/), una clave API de envío y un [dominio propio verificado](https://resend.com/docs/dashboard/domains/introduction). Configure `RESEND_API_KEY` y `MAIL_FROM` (por ejemplo, `reservas@su-dominio.com`). Si ambos proveedores están configurados, se usa Gmail. Reinicie PHP después de configurar las variables. Ejecute `php bin/notificaciones.php` para procesar la cola manualmente. En Windows, `pwsh -File .\bin\instalar_tarea_notificaciones.ps1` crea la tarea `Arena7-Notificaciones`, que ejecuta ese procesador cada minuto mientras el usuario de Windows tiene la sesión abierta. Si el equipo está apagado o la sesión está cerrada, el proceso no puede enviar hasta volver a ejecutarse.
+
+`php tests/notificaciones_integration.php` comprueba destinatario, cola, confirmación y validación con tablas temporales, sin enviar correos. Se puede establecer `TEST_NOTIFICATION_EMAIL` solo en la sesión de prueba para usar un destinatario concreto, sin escribirlo en el repositorio. Para una prueba real use una reserva de prueba con un correo que controle, confirme el pago cuando corresponda, ejecute el procesador y revise tanto el estado en el menú como la bandeja del destinatario. Sin credenciales de envío, las notificaciones se conservan como `Pendiente` y no se afirma que se hayan entregado.
