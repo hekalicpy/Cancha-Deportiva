@@ -34,7 +34,7 @@ El portal conserva sus endpoints PHP originales. La nueva API de cinco servicios
 
 Al completar los 8 dígitos del DNI, el formulario llama automáticamente a `GET /api.php/reservas/dni?dni=12345678` desde una sesión autenticada. Espera medio segundo tras la última tecla para evitar consultas repetidas. PHP consulta la [API DNI de Decolecta](https://decolecta.gitbook.io/docs/servicios/integrations-2) con un token guardado solo en el servidor; comprueba que el número devuelto coincida y completa el nombre. No completa teléfono ni otros datos. Una consulta de nombres **no demuestra que quien reserva sea el titular del DNI**: el operador debe revisar el documento. Si el proveedor no responde o no hay token, el formulario permite ingresar el nombre manualmente. Se retiraron los nombres de prueba que antes aparecían al buscar.
 
-Decolecta [ofrece 1.000 solicitudes mensuales gratuitas](https://decolecta.com/), pero exige crear una cuenta y obtener un token. Regístrese en [Decolecta](https://decolecta.com/profile) y configure la variable de entorno `RENIEC_TOKEN` antes de iniciar PHP. Por ejemplo, en PowerShell:
+Decolecta [ofrece una modalidad gratuita](https://decolecta.com/), pero exige crear una cuenta y obtener un token. Revise el límite de consultas vigente en su perfil de Decolecta. Regístrese en [Decolecta](https://decolecta.com/profile) y configure la variable de entorno `RENIEC_TOKEN` antes de iniciar PHP. Por ejemplo, en PowerShell:
 
 ```powershell
 $env:RENIEC_TOKEN = 'TOKEN_OBTENIDO_EN_DECOLECTA'
@@ -42,6 +42,7 @@ php -S localhost:8000
 ```
 
 Si PHP ya estaba en marcha, reinícielo después de configurar la variable. No ponga el token en el código, `.env.example` ni GitHub. `php tests/dni_integration.php` verifica la validación y el formato de respuesta sin enviar datos a Decolecta.
+En algunas instalaciones de PHP para Windows, cURL necesita un paquete de certificados CA. Configure `CA_BUNDLE_PATH` con la ruta de un [paquete CA de curl](https://curl.se/docs/caextract.html) fuera del directorio web; la aplicación mantiene activada la verificación TLS.
 
 ### Ubicación del local
 
