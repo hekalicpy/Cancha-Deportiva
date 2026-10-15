@@ -79,6 +79,8 @@
                         <option value="RESERVA_CANCELAR">Reserva cancelada</option>
                         <option value="PAGO_REGISTRAR">Pago registrado</option>
                         <option value="PAGO_CONFIRMAR_MANUAL">Pago confirmado</option>
+                        <option value="PAGO_CONFIRMAR_PASARELA">Pago confirmado por pasarela</option>
+                        <option value="PAGO_PASARELA_TARDIO">Pago tardío por revisar</option>
                     </select></div>
                     <div><label for="auditoriaRecursoId">ID de recurso</label><input type="number" id="auditoriaRecursoId" min="1" placeholder="Número de reserva o pago"></div>
                     <div><label for="auditoriaDesde">Desde</label><input type="date" id="auditoriaDesde"></div>
@@ -281,12 +283,14 @@
             <option>Yape</option>
             <option>Plin</option>
             <option>Efectivo</option>
+            <option value="Pasarela QR">QR automático (Yape o Plin)</option>
         </select>
         <div id="instruccionesYape" class="instrucciones-yape" role="status">
             <div class="qr-yape-recorte"><img src="assets/yape-qr.jpg" alt="Código QR para pagar con Yape" loading="lazy"></div>
         </div>
+        <p id="instruccionesPasarela" class="estado-dni" role="status" style="display:none"></p>
 
-        <label>Código de operación / pago</label>
+        <label id="codigoPagoLabel">Código de operación / pago</label>
         <input type="text" id="codigoPago" placeholder="Ejemplo: YP123456">
 
         <label>Monto a cobrar</label>
@@ -333,6 +337,9 @@ let dniConsultado = "";
 let nombreAutocompletado = "";
 let ultimoVoucher = null;
 let reservas = [];
+let pasarelaDisponible = false;
+let pasarelaMonto = "60.00";
+let pasarelaModo = "sandbox";
 function escapeHtml(value){
     return String(value ?? "").replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 }
@@ -389,12 +396,36 @@ async function activarSesion(){
     document.getElementById("menuAuditoria").style.display = data.user.rol === "administrador" ? "" : "none";
     document.getElementById("login").style.display = "none";
     document.getElementById("sistema").style.display = "block";
+    try {
+        const servicesResponse = await fetch("api.php/servicios", {cache:"no-store"});
+        if(servicesResponse.ok){
+            const services = await servicesResponse.json();
+            pasarelaDisponible = !!services.pasarela_qr;
+            pasarelaMonto = services.pasarela_monto;
+            pasarelaModo = services.pasarela_modo;
+        }
+    } catch(error) { console.error(error); }
+    actualizarInstruccionesPago();
     cargarReservas();
     return true;
 }
 
 function actualizarInstruccionesPago(){
-    document.getElementById("instruccionesYape").style.display = document.getElementById("pago").value === "Yape" ? "block" : "none";
+    const metodo = document.getElementById("pago").value;
+    const automatica = metodo === "Pasarela QR";
+    document.getElementById("instruccionesYape").style.display = metodo === "Yape" ? "block" : "none";
+    const aviso = document.getElementById("instruccionesPasarela");
+    aviso.style.display = automatica ? "block" : "none";
+    if(automatica) aviso.textContent = pasarelaDisponible
+        ? `El QR se generará al guardar por S/ ${pasarelaMonto}. ${pasarelaModo === "sandbox" ? "Modo de prueba: no admite pagos reales." : "El pago se confirmará automáticamente al recibir el aviso verificado."}`
+        : "La pasarela requiere una cuenta de comercio y claves API; el QR personal de Yape sigue disponible por separado.";
+    document.getElementById("codigoPagoLabel").style.display = automatica ? "none" : "";
+    const codigo = document.getElementById("codigoPago");
+    codigo.style.display = automatica ? "none" : "";
+    if(automatica) codigo.value = "";
+    const monto = document.getElementById("monto");
+    if(automatica){ monto.value = pasarelaMonto; monto.readOnly = true; }
+    else if(monto.readOnly){ monto.value = ""; monto.readOnly = false; }
 }
 
 function mostrarSeccion(seccion){
@@ -503,7 +534,7 @@ function abrirModalDesdeCelda(cancha, hora){
     let existente = buscarReserva(fecha, cancha, hora);
 
     if(existente){
-        mostrarVoucher(existente);
+        mostrarVoucherPorId(existente.id);
         return;
     }
 
@@ -606,8 +637,14 @@ function guardarReserva(){
     let monto = document.getElementById("monto").value.trim();
     let detalle = document.getElementById("detalle").value.trim();
 
-    if(dni === "" || cliente === "" || telefono === "" || fecha === "" || codigoPago === "" || monto === ""){
+    if(dni === "" || cliente === "" || telefono === "" || fecha === "" || monto === ""
+        || (["Yape","Plin"].includes(pago) && codigoPago === "")){
         mostrarAlerta("No se puede guardar. Complete todos los datos obligatorios.", "error");
+        return;
+    }
+
+    if(pago === "Pasarela QR" && !pasarelaDisponible){
+        mostrarAlerta("La pasarela todavía no está configurada. El Yape personal sigue disponible.", "error");
         return;
     }
 
@@ -687,8 +724,9 @@ function guardarReserva(){
             if(eraEdicion){
                 mostrarAlerta("Reserva actualizada correctamente en la base de datos.", "ok");
             }else{
-                mostrarAlerta(pago === "Efectivo" ? "Reserva registrada." : "Reserva pendiente: verifique la transferencia antes de confirmar el pago.", "ok");
-                mostrarVoucher(reservaActual);
+                mostrarAlerta(pago === "Efectivo" ? "Reserva registrada." : pago === "Pasarela QR" ? "Reserva creada; generando QR de cobro." : "Reserva pendiente: verifique la transferencia antes de confirmar el pago.", "ok");
+                if(pago === "Pasarela QR") abrirPagoPasarela(reservaActual);
+                else mostrarVoucher(reservaActual);
             }
 
             reservaEditandoId = null;
@@ -779,7 +817,7 @@ function pintarTabla(){
                 <button onclick="editarReserva(${r.id})">✏️</button>
                 <button onclick="eliminarReserva(${r.id})">🗑️</button>
                 <button onclick="mostrarVoucherPorId(${r.id})">🧾</button>
-                ${r.estado === "Pendiente" && r.pagoId ? `<button onclick="confirmarPago(${r.pagoId})" title="Confirmar recepción del dinero">💰</button>` : ""}
+                ${r.estado === "Pendiente" && r.pagoId && r.pago !== "Pasarela QR" ? `<button onclick="confirmarPago(${r.pagoId})" title="Confirmar recepción del dinero">💰</button>` : ""}
             </td>
         `;
 
@@ -937,7 +975,27 @@ function mostrarVoucherPorId(id){
     let reserva = reservas.find(r => r.id === id);
 
     if(reserva){
+        if(reserva.pago === "Pasarela QR" && reserva.estado === "Pendiente") abrirPagoPasarela(reserva);
+        else mostrarVoucher(reserva);
+    }
+}
+
+async function abrirPagoPasarela(reserva){
+    try {
+        const response = await fetch("api.php/reservas/" + reserva.id + "/qr", {
+            method:"POST", headers:{"X-CSRF-Token":csrfToken}
+        });
+        const data = await response.json();
+        if(!response.ok) throw new Error(data.error || "No se pudo generar el QR de cobro.");
+        if(!/^data:image\/(?:svg\+xml|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(data.qr_image || "")) {
+            throw new Error("La pasarela devolvió un QR inválido.");
+        }
+        reserva.qrPasarela = data.qr_image;
+        reserva.modoPasarela = data.modo;
         mostrarVoucher(reserva);
+    } catch(error) {
+        mostrarVoucher(reserva);
+        mostrarAlerta(error.message, "error");
     }
 }
 
@@ -952,13 +1010,16 @@ function mostrarVoucher(reserva){
         <p><b>Horario:</b> ${reserva.horaTexto} - ${reserva.horaFin}</p>
         <p><b>Método de pago:</b> ${escapeHtml(reserva.pago)}</p>
         ${reserva.pago === "Yape" && reserva.estado !== "Confirmado" ? `<div class="qr-yape-recorte"><img src="assets/yape-qr.jpg" alt="Código QR para pagar con Yape"></div>` : ""}
+        ${reserva.pago === "Pasarela QR" && reserva.estado === "Pendiente" && reserva.qrPasarela ? `<div class="qr-pasarela"><img src="${escapeHtml(reserva.qrPasarela)}" alt="Código QR de cobro por S/ ${escapeHtml(reserva.monto)}"></div>` : ""}
+        ${reserva.pago === "Pasarela QR" && reserva.estado === "Pendiente" && !reserva.qrPasarela ? `<p>QR aún no disponible. Abra de nuevo esta constancia para reintentar.</p>` : ""}
+        ${reserva.pago === "Pasarela QR" && reserva.modoPasarela === "sandbox" ? `<p>QR de prueba: no acepta pagos reales.</p>` : ""}
         <p><b>Monto:</b> S/ ${escapeHtml(reserva.monto)}</p>
         <p><b>Estado:</b> ${escapeHtml(reserva.estado)}</p>
         <p><b>Registrado por:</b> ${escapeHtml(reserva.usuario)}</p>
         <p><b>Fecha de registro:</b> ${escapeHtml(reserva.creado)}</p>
         <hr>
         <p class="mensaje-voucher">
-            ${reserva.estado === "Confirmado" ? "Reserva confirmada por el administrador." : "Pago pendiente de verificación. Esta constancia no acredita que se haya recibido dinero."}
+            ${reserva.estado === "Confirmado" ? "Reserva confirmada." : reserva.pago === "Pasarela QR" ? "Pago pendiente. La reserva se confirmará solo cuando la pasarela notifique el cobro." : "Pago pendiente de verificación. Esta constancia no acredita que se haya recibido dinero."}
         </p>
     `;
 

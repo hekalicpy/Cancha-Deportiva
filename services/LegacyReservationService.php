@@ -15,17 +15,21 @@ class LegacyReservationService {
         $pago = (string)$input['pago'];
         $codigo = trim((string)($input['codigoPago'] ?? ''));
         $detalle = trim((string)($input['detalle'] ?? ''));
-        $monto = (string)$input['monto'];
+        $monto = $pago === 'Pasarela QR' ? TaypiGateway::amount() : (string)$input['monto'];
         $date = DateTimeImmutable::createFromFormat('!Y-m-d', $fecha);
         if (!preg_match('/^\d{8}$/', $dni) || mb_strlen($cliente) > 150 || !preg_match('/^[+0-9 ()-]{9,20}$/', $telefono)
             || !in_array($cancha, ['1','2','3','4'], true)
             || !in_array($hora, ['08','09','10','11','12','13','14','15','16','18','19','20','21'], true)
-            || !in_array($pago, ['Yape','Plin','Efectivo'], true)
+            || !in_array($pago, ['Yape','Plin','Efectivo','Pasarela QR'], true)
             || !$date || $date->format('Y-m-d') !== $fecha || $fecha < date('Y-m-d')
             || !is_numeric($monto) || (float)$monto <= 0 || (float)$monto > 999999.99
             || mb_strlen($codigo) > 100 || mb_strlen($detalle) > 2000) {
             throw new ApiError('Revise los datos de la reserva.');
         }
+        if ($pago === 'Pasarela QR' && !TaypiGateway::configured()) {
+            throw new ApiError('La pasarela todavía no está configurada.', 503);
+        }
+        if ($pago === 'Pasarela QR' && $codigo !== '') throw new ApiError('El código de la pasarela lo genera el proveedor.');
         return [$dni, $cliente, $telefono, $cancha, $fecha, $hora, $pago, $codigo, $monto, $detalle];
     }
 
@@ -57,7 +61,7 @@ class LegacyReservationService {
                     [...$fields, $user['correo'], $source]
                 );
                 $id = $this->db->insert_id;
-                if ($fields[6] === 'Yape' || $fields[6] === 'Plin') {
+                if (in_array($fields[6], ['Yape','Plin','Pasarela QR'], true)) {
                     query($this->db, "UPDATE reservas SET estado='Pendiente',hold_until=DATE_ADD(NOW(),INTERVAL 15 MINUTE) WHERE id=?", [$id]);
                     (new PaymentService($this->db))->register($id, [
                         'pago'=>$fields[6], 'codigoPago'=>$fields[7], 'monto'=>$fields[8]

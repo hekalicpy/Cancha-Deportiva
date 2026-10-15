@@ -447,6 +447,19 @@ td button:hover{
     left:-44.2%;
     top:-58.3%;
 }
+.qr-pasarela{
+    width:min(100%,320px);
+    aspect-ratio:1;
+    margin:12px auto;
+    background:#fff;
+    break-inside:avoid;
+}
+.qr-pasarela img{
+    display:block;
+    width:100%;
+    height:100%;
+    object-fit:contain;
+}
 
 .botones{
     display:flex;

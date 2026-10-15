@@ -6,6 +6,7 @@ foreach(['email'=>"VARCHAR(254) NOT NULL DEFAULT ''",'deporte'=>"VARCHAR(20) NOT
     if(!$found) $db->query("ALTER TABLE reservas ADD COLUMN $name $definition");
 }
 $db->query("CREATE TABLE IF NOT EXISTS notificaciones (id INT AUTO_INCREMENT PRIMARY KEY,reserva_id INT NOT NULL UNIQUE,email VARCHAR(254) NOT NULL,mensaje TEXT NOT NULL,estado VARCHAR(30) NOT NULL,intentos INT NOT NULL DEFAULT 0,ultimo_error TEXT NULL,ultimo_intento DATETIME NULL,creado TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB");
+$db->query("CREATE TABLE IF NOT EXISTS pasarela_pagos (id INT AUTO_INCREMENT PRIMARY KEY,pago_id INT NOT NULL UNIQUE,referencia VARCHAR(100) NOT NULL UNIQUE,id_proveedor VARCHAR(100) NULL UNIQUE,qr_imagen MEDIUMTEXT NULL,estado VARCHAR(20) NOT NULL DEFAULT 'Pendiente',creado TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB");
 foreach(query($db,'SELECT id,password FROM usuarios')->get_result()->fetch_all(MYSQLI_ASSOC) as $u) {
     if(password_get_info($u['password'])['algo']===null) query($db,'UPDATE usuarios SET password=? WHERE id=?',[password_hash($u['password'],PASSWORD_DEFAULT),$u['id']]);
 }

@@ -4,7 +4,7 @@ Proyecto web PHP y MySQL para gestionar reservas de Arena 7, con una capa de ser
 
 ## Estado actual
 
-El portal conserva sus endpoints PHP originales. La nueva API de cinco servicios está implementada parcialmente y todavía no está integrada por completo al frontend. Yape/Plin se registran como pendientes y solo el propietario puede confirmar manualmente la recepción del dinero; no hay validación bancaria automática. Consulta DNI y correo requieren cuentas y claves de sus proveedores. Esta copia no incluye datos de clientes ni usuarios de la base de datos.
+El portal conserva sus endpoints PHP originales. La nueva API de cinco servicios está implementada parcialmente y todavía no está integrada por completo al frontend. El Yape personal conserva el registro pendiente y confirmación manual. Además hay una opción independiente de pasarela QR que fija el importe en el servidor y confirma únicamente avisos firmados del proveedor; permanece inactiva hasta configurar credenciales de comercio. Consulta DNI y correo requieren cuentas y claves de sus proveedores. Esta copia no incluye datos de clientes ni usuarios de la base de datos.
 
 ## Requisitos
 
@@ -59,7 +59,15 @@ En la opción Yape, el formulario y la constancia pendiente muestran únicamente
 
 Un número de celular por sí solo no proporciona una API de Yape para consultar transferencias entrantes. Según la [ayuda oficial de Yape](https://www.yape.com.pe/preguntas-frecuentes/enviar-y-recibir-yapeos/como-cobrar-con-yape), el cobro directo se hace desde la aplicación usando número o QR y la confirmación se comprueba en la cuenta receptora. Por eso esta integración dirige el pago al número indicado y conserva la verificación manual; no afirma validar automáticamente transferencias.
 
-Existe un [SDK PHP abierto de TAYPI](https://github.com/neoevsys/taypi-php) para [QR interoperables con Yape y Plin](https://docs.taypi.pe/). El código del SDK es libre, pero los cobros reales requieren una cuenta de comercio, claves API y condiciones comerciales del proveedor. Todavía no se han configurado esas claves ni una pasarela de cobro automático en este proyecto. No use repositorios que simulan pagos o claves de terceros como prueba de una transferencia real.
+Existe un [SDK PHP abierto de TAYPI](https://github.com/neoevsys/taypi-php) para [QR interoperables con Yape y Plin](https://docs.taypi.pe/). Este proyecto conecta directamente con la API documentada; el código de integración está preparado, pero los cobros reales requieren una cuenta de comercio y claves propias aún no configuradas. No use repositorios que simulan pagos o claves de terceros como prueba de una transferencia real.
+
+### Pasarela QR con importe automático
+
+El método «QR automático (Yape o Plin)» es independiente del Yape personal: no modifica su número, QR ni cuenta. La tarifa predeterminada es **S/ 60.00**, configurable con `QR_AMOUNT_PEN`; el servidor fija ese monto al crear la reserva, sin aceptar uno distinto enviado por el navegador. Tras guardar, `POST /api.php/reservas/{id}/qr` genera un QR único por reserva mediante la API de TAYPI y guarda el identificador del cobro. Usa una referencia estable como llave de idempotencia para que reintentar no cree un segundo cobro. La reserva permanece pendiente hasta recibir `payment.completed` en `POST /taypi_webhook.php` con firma HMAC válida, moneda e importe coincidentes. El aviso repetido no confirma dos veces. Un cobro después de vencer o cancelar la reserva queda marcado para revisión manual y posible devolución.
+
+Para probarlo, abra una [cuenta sandbox de TAYPI](https://sandbox.taypi.pe/) y configure en el entorno de PHP `TAYPI_MODE=sandbox`, `TAYPI_PUBLIC_KEY`, `TAYPI_SECRET_KEY` y `TAYPI_WEBHOOK_SECRET`; reinicie PHP y ejecute `php bin/migrate.php`. **El QR sandbox es simulado y no acepta Yape real.** Para producción, TAYPI exige verificación del comercio, claves `live`, un CCI del titular y un webhook público HTTPS; `localhost` no puede recibir ese webhook desde Internet. Configure `TAYPI_MODE=live` solo después de probar el flujo completo y los costos del proveedor. [Requisitos y límites de ambientes](https://docs.taypi.pe/ambientes), [firma de avisos](https://docs.taypi.pe/webhooks), [tarifas](https://taypi.pe/precios/). El dinero de la pasarela se liquida según la cuenta bancaria del comercio registrada allí, no por el QR personal de Yape.
+
+`php tests/pasarela_integration.php` verifica importe, firma, idempotencia y cobro tardío usando tablas temporales; no envía solicitudes al proveedor. Falta una prueba real de extremo a extremo hasta que el comercio tenga credenciales propias. Nunca publique claves en GitHub.
 
 ### Auditoría
 

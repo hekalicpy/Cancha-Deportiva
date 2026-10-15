@@ -17,7 +17,7 @@ try {
     $user=$auth->privateData();if($method!=='GET') $auth->csrf();
     if($route==='auth/me'&&$method==='GET') respond(['user'=>$user,'csrf'=>$_SESSION['csrf']]);
     if($route==='auth/logout'&&$method==='POST') {session_destroy();respond(['ok'=>true]);}
-    if($route==='servicios'&&$method==='GET') respond(['dni'=>cfg('RENIEC_TOKEN')!=='','correo'=>cfg('RESEND_API_KEY')!=='','pagos'=>'Registro manual con confirmación del administrador','yape_numero'=>cfg('YAPE_PHONE','989518266'),'maps'=>NotificationService::maps()]);
+    if($route==='servicios'&&$method==='GET') respond(['dni'=>cfg('RENIEC_TOKEN')!=='','correo'=>cfg('RESEND_API_KEY')!=='','pagos'=>'Yape personal manual; pasarela QR independiente','yape_numero'=>cfg('YAPE_PHONE','989518266'),'pasarela_qr'=>TaypiGateway::configured(),'pasarela_modo'=>TaypiGateway::mode(),'pasarela_monto'=>TaypiGateway::amount(),'maps'=>NotificationService::maps()]);
     $reservations=new ReservationService($db);
     if($route==='reservas'&&$method==='GET') respond($reservations->list());
     if($route==='reservas'&&$method==='POST') respond($reservations->save($input,$user),201);
@@ -26,6 +26,7 @@ try {
         if($method==='DELETE') respond($reservations->cancel((int)$m[1],$user));
     }
     if($route==='reservas/dni'&&$method==='POST') respond($reservations->dni((string)($input['dni']??'')));
+    if(preg_match('#^reservas/(\d+)/qr$#',$route,$m)&&$method==='POST') respond((new GatewayPaymentService($db))->qr((int)$m[1]));
     if($route==='pagos'&&$method==='GET') respond((new PaymentService($db))->list());
     if(preg_match('#^pagos/(\d+)/confirmar$#',$route,$m)&&$method==='POST') {$auth->admin();respond((new PaymentService($db))->confirm((int)$m[1],$user));}
     if($route==='notificaciones'&&$method==='GET') respond((new NotificationService($db))->list());
