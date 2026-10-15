@@ -68,6 +68,7 @@ class LegacyReservationService {
                     (new PaymentService($this->db))->register($id, [
                         'pago'=>$fields[6], 'codigoPago'=>$fields[7], 'monto'=>$fields[8]
                     ], $user);
+                    (new NotificationService($this->db))->enqueue($id, 'Recibida');
                 } else {
                     (new NotificationService($this->db))->enqueue($id);
                 }
@@ -103,7 +104,7 @@ class LegacyReservationService {
                     'UPDATE reservas SET dni=?,cliente=?,telefono=?,cancha=?,fecha=?,hora=?,pago=?,codigo_pago=?,monto=?,detalle=?,email=?,usuario=?,identidad=? WHERE id=?',
                     [...$fields, $user['correo'], $source, $id]
                 );
-                if ($old['estado'] === 'Confirmado') (new NotificationService($this->db))->enqueue($id);
+                (new NotificationService($this->db))->enqueue($id, $old['estado'] === 'Confirmado' ? 'Confirmada' : 'Recibida');
                 $before = array_intersect_key($old, array_flip(['cancha', 'fecha', 'hora', 'pago', 'monto', 'estado']));
                 $after = ['cancha'=>$fields[3], 'fecha'=>$fields[4], 'hora'=>$fields[5], 'pago'=>$fields[6], 'monto'=>$fields[8]];
                 (new AuditService($this->db))->record($user['correo'], 'RESERVA_EDITAR', 'reservas', $id,

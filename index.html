@@ -69,7 +69,7 @@
             <div id="seccionNotificaciones" style="display:none;">
                 <div class="titulo"><h1>NOTIFICACIONES DE RESERVA</h1><button type="button" class="btn" onclick="cargarNotificaciones()">Actualizar</button></div>
                 <p id="estadoNotificaciones" role="status" aria-live="polite"></p>
-                <div class="tabla-reservas"><table><thead><tr><th>Reserva</th><th>Correo del cliente</th><th>Estado</th><th>Intentos</th><th>Detalle</th></tr></thead><tbody id="tablaNotificaciones"></tbody></table></div>
+                <div class="tabla-reservas"><table><thead><tr><th>Reserva</th><th>Aviso</th><th>Correo del cliente</th><th>Estado</th><th>Intentos</th><th>Detalle</th></tr></thead><tbody id="tablaNotificaciones"></tbody></table></div>
             </div>
 
             <div id="seccionAuditoria" style="display:none;">
@@ -271,7 +271,7 @@
         <label>Teléfono</label>
         <input type="text" id="telefono" placeholder="Número de celular">
 
-        <label for="emailCliente">Correo del cliente (para enviar la confirmación)</label>
+        <label for="emailCliente">Correo del cliente (avisos de reserva y confirmación)</label>
         <input type="email" id="emailCliente" maxlength="254" autocomplete="email" placeholder="cliente@ejemplo.com">
 
         <label>Cancha</label>
@@ -494,8 +494,8 @@ async function cargarNotificaciones(){
         const lista = await listaResponse.json();
         estado.textContent = servicios.correo
             ? "El envío está configurado. «Enviado» significa que el proveedor aceptó el mensaje."
-            : "El envío no está configurado: falta activar Gmail o Resend. Las confirmaciones quedan pendientes.";
-        tabla.innerHTML = lista.map(n => `<tr><td>${escapeHtml(n.reserva_id)}</td><td>${escapeHtml(n.email)}</td><td>${escapeHtml(n.estado)}</td><td>${escapeHtml(n.intentos)}</td><td>${escapeHtml(n.ultimo_error || "")}</td></tr>`).join("") || "<tr><td colspan=\"5\">Aún no hay notificaciones.</td></tr>";
+            : "El envío no está configurado: falta activar Gmail o Resend. Los avisos quedan pendientes.";
+        tabla.innerHTML = lista.map(n => `<tr><td>${escapeHtml(n.reserva_id)}</td><td>${escapeHtml(n.evento)}</td><td>${escapeHtml(n.email)}</td><td>${escapeHtml(n.estado)}</td><td>${escapeHtml(n.intentos)}</td><td>${escapeHtml(n.ultimo_error || "")}</td></tr>`).join("") || "<tr><td colspan=\"6\">Aún no hay notificaciones.</td></tr>";
     } catch(error) {
         estado.textContent = "No se pudieron cargar las notificaciones.";
         tabla.innerHTML = "";
@@ -772,7 +772,8 @@ function guardarReserva(){
             if(eraEdicion){
                 mostrarAlerta("Reserva actualizada correctamente en la base de datos.", "ok");
             }else{
-                mostrarAlerta(pago === "Efectivo" ? "Reserva registrada." : pago === "Pasarela QR" ? "Reserva creada; generando QR de cobro." : "Reserva pendiente: verifique la transferencia antes de confirmar el pago.", "ok");
+                const avisoCorreo = email ? " Aviso por correo preparado; consulte su estado en Notificaciones." : "";
+                mostrarAlerta((pago === "Efectivo" ? "Reserva registrada." : pago === "Pasarela QR" ? "Reserva creada; generando QR de cobro." : "Reserva pendiente: verifique la transferencia antes de confirmar el pago.") + avisoCorreo, "ok");
                 if(pago === "Pasarela QR") abrirPagoPasarela(reservaActual);
                 else mostrarVoucher(reservaActual);
             }

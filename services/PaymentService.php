@@ -11,6 +11,7 @@ class PaymentService {
     }
     private function confirmReservation(int $id,array $user): void {
         query($this->db,"UPDATE reservas SET estado='Confirmado',hold_until=NULL WHERE id=?",[$id]);
+        query($this->db,"UPDATE notificaciones SET estado='Cancelado' WHERE reserva_id=? AND evento='Recibida' AND estado IN ('Pendiente','Error')",[$id]);
         (new NotificationService($this->db))->enqueue($id);
         (new AuditService($this->db))->record($user['correo'],'RESERVA_CONFIRMAR','reservas',$id);
     }

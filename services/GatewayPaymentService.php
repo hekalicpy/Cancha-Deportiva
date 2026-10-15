@@ -76,6 +76,7 @@ final class GatewayPaymentService {
             query($this->db,"UPDATE pasarela_pagos SET estado='Confirmado' WHERE id=?",[$attempt['id']]);
             query($this->db,"UPDATE pagos SET estado='Confirmado',codigo=?,usuario=? WHERE id=?",[$providerId,$actor,$payment['id']]);
             query($this->db,"UPDATE reservas SET estado='Confirmado',hold_until=NULL WHERE id=?",[$reservation['id']]);
+            query($this->db,"UPDATE notificaciones SET estado='Cancelado' WHERE reserva_id=? AND evento='Recibida' AND estado IN ('Pendiente','Error')",[$reservation['id']]);
             (new NotificationService($this->db))->enqueue((int)$reservation['id']);
             (new AuditService($this->db))->record($actor,'PAGO_CONFIRMAR_PASARELA','pagos',(int)$payment['id'],
                 'Pago verificado por webhook firmado.');

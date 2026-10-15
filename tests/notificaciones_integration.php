@@ -32,19 +32,23 @@ $data = [
 ];
 
 $cashId = $service->create($data, $user);
-$cash = query($db, 'SELECT r.email,r.estado,n.email AS destino,n.estado AS notificacion,n.mensaje FROM reservas r JOIN notificaciones n ON n.reserva_id=r.id WHERE r.id=?', [$cashId])->get_result()->fetch_assoc();
+$cash = query($db, 'SELECT r.email,r.estado,n.evento,n.email AS destino,n.estado AS notificacion,n.mensaje FROM reservas r JOIN notificaciones n ON n.reserva_id=r.id WHERE r.id=?', [$cashId])->get_result()->fetch_assoc();
 checkNotification($cash['email'] === $data['email'] && $cash['destino'] === $data['email'], 'No se guardó el destinatario.');
-checkNotification($cash['estado'] === 'Confirmado' && $cash['notificacion'] === 'Pendiente', 'Efectivo no generó la confirmación.');
-checkNotification(str_contains($cash['mensaje'], 'S/ 60') && !str_contains($cash['mensaje'], $data['dni']), 'El mensaje no tiene el monto o expone el DNI.');
+checkNotification($cash['estado'] === 'Confirmado' && $cash['evento'] === 'Confirmada' && $cash['notificacion'] === 'Pendiente', 'Efectivo no generó la confirmación.');
+checkNotification(str_contains($cash['mensaje'], 'S/ 60') && str_contains($cash['mensaje'], 'de 08:00 a 09:00') && !str_contains($cash['mensaje'], $data['dni']), 'La confirmación no tiene horario y monto correctos, o expone el DNI.');
 
 $data['cancha'] = '2';
 $data['pago'] = 'Yape';
 $data['codigoPago'] = 'REFERENCIA-PRUEBA';
 $pendingId = $service->create($data, $user);
-checkNotification((int)query($db, 'SELECT COUNT(*) n FROM notificaciones WHERE reserva_id=?', [$pendingId])->get_result()->fetch_assoc()['n'] === 0, 'Se notificó un pago aún pendiente.');
+$received = query($db, 'SELECT evento,estado,mensaje FROM notificaciones WHERE reserva_id=?', [$pendingId])->get_result()->fetch_assoc();
+checkNotification($received['evento'] === 'Recibida' && $received['estado'] === 'Pendiente', 'La solicitud pendiente no generó el aviso inicial.');
+checkNotification(str_contains($received['mensaje'], 'de 08:00 a 09:00') && str_contains($received['mensaje'], 'NO está confirmada') && !str_contains($received['mensaje'], $data['dni']), 'El aviso inicial no distingue el pago pendiente o expone el DNI.');
 $payment = query($db, 'SELECT id FROM pagos WHERE reserva_id=?', [$pendingId])->get_result()->fetch_assoc();
 (new PaymentService($db))->confirm((int)$payment['id'], $user);
-checkNotification(query($db, 'SELECT estado FROM notificaciones WHERE reserva_id=?', [$pendingId])->get_result()->fetch_assoc()['estado'] === 'Pendiente', 'La confirmación manual no generó el correo.');
+$events = query($db, 'SELECT evento,estado,mensaje FROM notificaciones WHERE reserva_id=? ORDER BY id', [$pendingId])->get_result()->fetch_all(MYSQLI_ASSOC);
+checkNotification(count($events) === 2 && $events[0]['evento'] === 'Recibida' && $events[0]['estado'] === 'Cancelado', 'El aviso inicial sin enviar debe cancelarse al confirmar el pago.');
+checkNotification($events[1]['evento'] === 'Confirmada' && $events[1]['estado'] === 'Pendiente' && str_contains($events[1]['mensaje'], 'de 08:00 a 09:00'), 'La confirmación manual no generó el correo con el horario.');
 
 $data['cancha'] = '3';
 $data['hora'] = '09';
@@ -67,4 +71,4 @@ try {
     checkNotification($e->status === 422, 'El correo inválido no devolvió error de validación.');
 }
 
-echo "Notificaciones: destinatario, efectivo, pago pendiente, confirmación, edición y validación OK.\n";
+echo "Notificaciones: destinatario, horario, solicitud pendiente, confirmación, edición y validación OK.\n";
