@@ -300,7 +300,12 @@
         </div>
         <p id="instruccionesPasarela" class="estado-dni" role="status" style="display:none"></p>
 
-        <label id="codigoPagoLabel">Código de operación / pago</label>
+        <div id="confirmacionPagoManual" class="confirmacion-pago-manual">
+            <label for="pagoRecibido"><input type="checkbox" id="pagoRecibido"> Ya comprobé que recibí el pago</label>
+            <small id="instruccionesPagoManual">Si aún no pagó, déjalo sin marcar: la reserva quedará pendiente y el correo incluirá el QR de Yape.</small>
+        </div>
+
+        <label id="codigoPagoLabel">Código de operación (opcional)</label>
         <input type="text" id="codigoPago" placeholder="Ejemplo: YP123456">
 
         <label>Monto a cobrar</label>
@@ -423,7 +428,14 @@ async function activarSesion(){
 function actualizarInstruccionesPago(){
     const metodo = document.getElementById("pago").value;
     const automatica = metodo === "Pasarela QR";
+    if(automatica) document.getElementById("pagoRecibido").checked = false;
     document.getElementById("instruccionesYape").style.display = metodo === "Yape" ? "block" : "none";
+    document.getElementById("confirmacionPagoManual").style.display = automatica || reservaEditandoId !== null ? "none" : "block";
+    document.getElementById("instruccionesPagoManual").textContent = metodo === "Yape"
+        ? "Si aún no pagó, déjalo sin marcar: recibirá el QR de Yape por correo y la reserva quedará pendiente."
+        : metodo === "Plin"
+        ? "Si aún no pagó, déjalo sin marcar. No hay un QR de Plin configurado para enviar por correo."
+        : "Si aún no pagó, déjalo sin marcar. Solo confirma después de comprobar el dinero recibido.";
     const aviso = document.getElementById("instruccionesPasarela");
     aviso.style.display = automatica ? "block" : "none";
     if(automatica) aviso.textContent = pasarelaDisponible
@@ -674,12 +686,12 @@ function guardarReserva(){
     let fecha = document.getElementById("fecha").value;
     let hora = document.getElementById("hora").value;
     let pago = document.getElementById("pago").value;
+    let pagoRecibido = pago !== "Pasarela QR" && document.getElementById("pagoRecibido").checked;
     let codigoPago = document.getElementById("codigoPago").value.trim();
     let monto = document.getElementById("monto").value.trim();
     let detalle = document.getElementById("detalle").value.trim();
 
-    if(dni === "" || cliente === "" || telefono === "" || fecha === "" || monto === ""
-        || (["Yape","Plin"].includes(pago) && codigoPago === "")){
+    if(dni === "" || cliente === "" || telefono === "" || fecha === "" || monto === ""){
         mostrarAlerta("No se puede guardar. Complete todos los datos obligatorios.", "error");
         return;
     }
@@ -728,7 +740,7 @@ function guardarReserva(){
         codigoPago: codigoPago,
         monto: monto,
         detalle: detalle,
-        estado: pago === "Efectivo" ? "Confirmado" : "Pendiente",
+        estado: pagoRecibido ? "Confirmado" : "Pendiente",
         usuario: usuarioActual,
         creado: new Date().toLocaleString("es-PE")
     };
@@ -742,6 +754,7 @@ function guardarReserva(){
     datos.append("fecha", fecha);
     datos.append("hora", hora);
     datos.append("pago", pago);
+    if(!reservaEditandoId) datos.append("pagoRecibido", pagoRecibido ? "1" : "0");
     datos.append("codigoPago", codigoPago);
     datos.append("monto", monto);
     datos.append("detalle", detalle);
@@ -773,7 +786,7 @@ function guardarReserva(){
                 mostrarAlerta("Reserva actualizada correctamente en la base de datos.", "ok");
             }else{
                 const avisoCorreo = email ? " Aviso por correo preparado; consulte su estado en Notificaciones." : "";
-                mostrarAlerta((pago === "Efectivo" ? "Reserva registrada." : pago === "Pasarela QR" ? "Reserva creada; generando QR de cobro." : "Reserva pendiente: verifique la transferencia antes de confirmar el pago.") + avisoCorreo, "ok");
+                mostrarAlerta((pagoRecibido ? "Pago registrado y reserva confirmada." : pago === "Pasarela QR" ? "Reserva creada; generando QR de cobro." : "Reserva pendiente de pago; confirma cuando compruebes el abono.") + avisoCorreo, "ok");
                 if(pago === "Pasarela QR") abrirPagoPasarela(reservaActual);
                 else mostrarVoucher(reservaActual);
             }
@@ -861,13 +874,13 @@ function pintarTabla(){
             <td>${r.horaTexto} - ${r.horaFin}</td>
             <td>${escapeHtml(r.pago)}</td>
             <td>${escapeHtml(r.codigoPago)}</td>
-            <td class="estado-confirmado">${escapeHtml(r.estado)}</td>
+            <td class="${r.estado === "Confirmado" ? "estado-confirmado" : "estado-pendiente"}">${escapeHtml(r.estado)}</td>
             <td>${escapeHtml(r.usuario)}</td>
             <td>
                 <button onclick="editarReserva(${r.id})">✏️</button>
                 <button onclick="eliminarReserva(${r.id})">🗑️</button>
                 <button onclick="mostrarVoucherPorId(${r.id})">🧾</button>
-                ${r.estado === "Pendiente" && r.pagoId && r.pago !== "Pasarela QR" ? `<button onclick="confirmarPago(${r.pagoId})" title="Confirmar recepción del dinero">💰</button>` : ""}
+                ${r.estado === "Pendiente" && r.pagoId && r.pago !== "Pasarela QR" ? `<button onclick="confirmarPago(${r.pagoId})" title="Confirmar recepción del dinero">Confirmar pago</button>` : ""}
             </td>
         `;
 
@@ -1017,7 +1030,7 @@ async function confirmarPago(id){
         });
         const data = await response.json();
         if(!response.ok) throw new Error(data.error || "No se pudo confirmar el pago.");
-        mostrarAlerta("Pago confirmado por el administrador.", "ok");
+        mostrarAlerta("Pago confirmado. Se preparó el correo de confirmación para el cliente.", "ok");
         cargarReservas();
     } catch(error) { mostrarAlerta(error.message, "error"); }
 }
@@ -1197,6 +1210,7 @@ function limpiarFormulario(){
     document.getElementById("telefono").value = "";
     document.getElementById("emailCliente").value = "";
     document.getElementById("codigoPago").value = "";
+    document.getElementById("pagoRecibido").checked = false;
     document.getElementById("monto").value = "";
     document.getElementById("detalle").value = "";
     document.getElementById("cancha").value = "1";

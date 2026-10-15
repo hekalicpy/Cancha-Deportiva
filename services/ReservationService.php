@@ -21,10 +21,12 @@ class ReservationService {
         if(!in_array($d['deporte']??'Fútbol',['Fútbol','Vóley'],true)) throw new ApiError('Deporte inválido.');
         if(!empty($d['email'])&&!filter_var($d['email'],FILTER_VALIDATE_EMAIL)) throw new ApiError('Correo de cliente inválido.');
         foreach(['cliente'=>150,'codigoPago'=>100,'detalle'=>2000,'email'=>254] as $key=>$max) if(mb_strlen($d[$key]??'')>$max) throw new ApiError("El campo $key es demasiado largo.");
-        if(in_array($d['pago'],['Yape','Plin'],true)&&empty($d['codigoPago'])) throw new ApiError('Ingrese la referencia de la transferencia para su revisión.');
+        $paymentValue=$d['pagoRecibido']??($d['pago']==='Efectivo'?'1':'0');
+        $paymentReceived=is_bool($paymentValue)?($paymentValue?'1':'0'):(string)$paymentValue;
+        if(!in_array($paymentReceived,['0','1'],true)||($d['pago']==='Pasarela QR'&&$paymentReceived==='1')) throw new ApiError('Estado de pago inválido.');
         // A DB advisory lock serializes all channels while the reservation and payment commit.
         if(!query($this->db,"SELECT GET_LOCK('arena7_reservas',5) locked")->get_result()->fetch_assoc()['locked']) throw new ApiError('Sistema ocupado, vuelva a intentar.',409);
-        try {return transaction($this->db,function() use($d,$user,$id){
+        try {return transaction($this->db,function() use($d,$user,$id,$paymentReceived){
             $old=$id?query($this->db,'SELECT * FROM reservas WHERE id=? FOR UPDATE',[$id])->get_result()->fetch_assoc():null;
             if($id&&!$old) throw new ApiError('Reserva no encontrada.',404);
             if($old&&($old['estado']==='Cancelado'||($old['estado']==='Pendiente'&&strtotime($old['hold_until'])<time()))) throw new ApiError('Esta reserva ya no se puede editar.',409);
@@ -35,7 +37,7 @@ class ReservationService {
             $verified=($identity['dni']??null)===$d['dni']&&($identity['nombre']??null)===$d['cliente']&&($identity['expires']??0)>=time();
             $values=[$d['dni'],$d['cliente'],$d['telefono'],$d['cancha'],$d['fecha'],$d['hora'],$d['pago'],$d['codigoPago']??'',$d['monto'],$d['detalle']??'',$user['correo'],$d['email']??'',$d['deporte']??'Fútbol',$verified?'Consulta API':'Manual'];
             if($id){query($this->db,'UPDATE reservas SET dni=?,cliente=?,telefono=?,cancha=?,fecha=?,hora=?,pago=?,codigo_pago=?,monto=?,detalle=?,usuario=?,email=?,deporte=?,identidad=? WHERE id=?',[...$values,$id]);(new NotificationService($this->db))->enqueue($id,$old['estado']==='Confirmado'?'Confirmada':'Recibida');}
-            else {query($this->db,"INSERT INTO reservas (dni,cliente,telefono,cancha,fecha,hora,pago,codigo_pago,monto,detalle,usuario,email,deporte,identidad,estado,hold_until) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Pendiente',DATE_ADD(NOW(),INTERVAL 15 MINUTE))",$values);$id=$this->db->insert_id;(new PaymentService($this->db))->register($id,$d,$user);if($d['pago']!=='Efectivo')(new NotificationService($this->db))->enqueue($id,'Recibida');}
+            else {query($this->db,"INSERT INTO reservas (dni,cliente,telefono,cancha,fecha,hora,pago,codigo_pago,monto,detalle,usuario,email,deporte,identidad,estado,hold_until) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Pendiente',DATE_ADD(NOW(),INTERVAL 15 MINUTE))",$values);$id=$this->db->insert_id;(new PaymentService($this->db))->register($id,$d,$user,$paymentReceived==='1');if($paymentReceived==='0')(new NotificationService($this->db))->enqueue($id,'Recibida');}
             (new AuditService($this->db))->record($user['correo'],$old?'RESERVA_EDITAR':'RESERVA_CREAR','reservas',$id);
             return query($this->db,'SELECT * FROM reservas WHERE id=?',[$id])->get_result()->fetch_assoc();
         });} finally {query($this->db,"SELECT RELEASE_LOCK('arena7_reservas')");}

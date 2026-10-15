@@ -348,6 +348,10 @@ td button:hover{
     color:#008f5a;
     font-weight:bold;
 }
+.estado-pendiente{
+    color:#a15c00;
+    font-weight:bold;
+}
 
 /* MODAL */
 .modal{
@@ -392,6 +396,22 @@ td button:hover{
     margin-top:5px;
     border:1px solid #ccc;
     border-radius:5px;
+}
+.formulario input[type="checkbox"]{
+    width:auto;
+    margin:0 8px 0 0;
+    padding:0;
+}
+.confirmacion-pago-manual{
+    margin:12px 0;
+    padding:10px 12px;
+    background:#eefaf6;
+    border-radius:6px;
+}
+.formulario .confirmacion-pago-manual label{
+    display:flex;
+    align-items:center;
+    margin:0 0 5px;
 }
 
 .formulario textarea{

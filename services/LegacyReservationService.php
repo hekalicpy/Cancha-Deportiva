@@ -51,26 +51,33 @@ class LegacyReservationService {
 
     public function create(array $input, array $user): int {
         $fields = $this->fields($input);
+        $paymentValue = $input['pagoRecibido'] ?? ($fields[6] === 'Efectivo' ? '1' : '0');
+        $paymentReceived = is_bool($paymentValue) ? ($paymentValue ? '1' : '0') : (string)$paymentValue;
+        if (!in_array($paymentReceived, ['0', '1'], true)
+            || ($fields[6] === 'Pasarela QR' && $paymentReceived === '1')) {
+            throw new ApiError('Estado de pago inválido.');
+        }
+        $paid = $paymentReceived === '1';
         $identity = $_SESSION['identity'] ?? [];
         $source = ($identity['dni'] ?? null) === $fields[0] && ($identity['nombre'] ?? null) === $fields[1]
             && ($identity['expires'] ?? 0) >= time() ? 'Consulta API' : 'Manual';
         $this->lock();
         try {
-            return transaction($this->db, function () use ($fields, $user, $source) {
+            return transaction($this->db, function () use ($fields, $user, $source, $paid) {
                 $this->available($fields);
                 query($this->db,
                     'INSERT INTO reservas (dni,cliente,telefono,cancha,fecha,hora,pago,codigo_pago,monto,detalle,email,usuario,identidad) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
                     [...$fields, $user['correo'], $source]
                 );
                 $id = $this->db->insert_id;
-                if (in_array($fields[6], ['Yape','Plin','Pasarela QR'], true)) {
+                if (!$paid) {
                     query($this->db, "UPDATE reservas SET estado='Pendiente',hold_until=DATE_ADD(NOW(),INTERVAL 15 MINUTE) WHERE id=?", [$id]);
-                    (new PaymentService($this->db))->register($id, [
-                        'pago'=>$fields[6], 'codigoPago'=>$fields[7], 'monto'=>$fields[8]
-                    ], $user);
+                }
+                (new PaymentService($this->db))->register($id, [
+                    'pago'=>$fields[6], 'codigoPago'=>$fields[7], 'monto'=>$fields[8]
+                ], $user, $paid);
+                if (!$paid) {
                     (new NotificationService($this->db))->enqueue($id, 'Recibida');
-                } else {
-                    (new NotificationService($this->db))->enqueue($id);
                 }
                 (new AuditService($this->db))->record($user['correo'], 'RESERVA_CREAR', 'reservas', $id,
                     json_encode(['cancha'=>$fields[3], 'fecha'=>$fields[4], 'hora'=>$fields[5]], JSON_UNESCAPED_UNICODE));

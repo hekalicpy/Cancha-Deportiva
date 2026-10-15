@@ -6,8 +6,12 @@ class GmailMailer {
             && is_readable(__DIR__.'/../vendor/autoload.php');
     }
 
-    public static function send(string $to, string $subject, string $body): void {
+    public static function send(string $to, string $subject, string $body, ?string $html = null, ?string $inlineQrPath = null): void {
         if (!self::configured()) throw new RuntimeException('Gmail no está configurado; instale PHPMailer y configure las credenciales de aplicación.');
+        self::compose($to, $subject, $body, $html, $inlineQrPath)->send();
+    }
+
+    public static function compose(string $to, string $subject, string $body, ?string $html = null, ?string $inlineQrPath = null): \PHPMailer\PHPMailer\PHPMailer {
         if (!filter_var($to, FILTER_VALIDATE_EMAIL)) throw new InvalidArgumentException('Destinatario inválido.');
 
         require_once __DIR__.'/../vendor/autoload.php';
@@ -24,7 +28,17 @@ class GmailMailer {
         $mail->setFrom(getenv('GMAIL_ADDRESS'), 'Arena 7');
         $mail->addAddress($to);
         $mail->Subject = $subject;
-        $mail->Body = $body;
-        $mail->send();
+        if ($html !== null) {
+            $mail->isHTML(true);
+            $mail->Body = $html;
+            $mail->AltBody = $body;
+            if ($inlineQrPath !== null) {
+                if (!is_readable($inlineQrPath)) throw new RuntimeException('No se encuentra el QR de Yape para el correo.');
+                $mail->addEmbeddedImage($inlineQrPath, 'yape-qr', 'yape-qr.png', 'base64', 'image/png');
+            }
+        } else {
+            $mail->Body = $body;
+        }
+        return $mail;
     }
 }

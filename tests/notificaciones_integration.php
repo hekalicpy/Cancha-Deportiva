@@ -19,6 +19,15 @@ putenv('GMAIL_APP_PASSWORD='.str_repeat('x', 16));
 checkNotification(NotificationService::provider() === 'gmail', 'No se activó el transporte SMTP de Gmail.');
 require_once __DIR__.'/../vendor/autoload.php';
 checkNotification(class_exists(\PHPMailer\PHPMailer\PHPMailer::class), 'Falta PHPMailer.');
+$qrPath = __DIR__.'/../assets/yape-qr-codigo.png';
+$html = NotificationService::paymentHtml('Paga S/ 60 <con Yape>');
+$mail = GmailMailer::compose('cliente@example.invalid', 'Pago pendiente', 'Paga S/ 60', $html, $qrPath);
+checkNotification($mail->preSend(), 'No se pudo preparar el correo de pago con QR.');
+$mime = $mail->getSentMIMEMessage();
+checkNotification(str_contains($mime, 'Content-ID: <yape-qr>')
+    && str_contains($mime, 'Content-Type: image/png')
+    && str_contains($html, '&lt;con Yape&gt;'),
+    'El QR no quedó incluido en el correo o el HTML no se escapó.');
 $oldGmailAddress === false ? putenv('GMAIL_ADDRESS') : putenv('GMAIL_ADDRESS='.$oldGmailAddress);
 $oldGmailPassword === false ? putenv('GMAIL_APP_PASSWORD') : putenv('GMAIL_APP_PASSWORD='.$oldGmailPassword);
 
@@ -54,16 +63,36 @@ checkNotification(count($recipients) === 2
 
 $data['cancha'] = '2';
 $data['pago'] = 'Yape';
-$data['codigoPago'] = 'REFERENCIA-PRUEBA';
+$data['codigoPago'] = '';
 $pendingId = $service->create($data, $user);
 $received = query($db, 'SELECT evento,estado,mensaje FROM notificaciones WHERE reserva_id=?', [$pendingId])->get_result()->fetch_assoc();
 checkNotification($received['evento'] === 'Recibida' && $received['estado'] === 'Pendiente', 'La solicitud pendiente no generó el aviso inicial.');
 checkNotification(str_contains($received['mensaje'], 'de 08:00 a 09:00') && str_contains($received['mensaje'], 'NO está confirmada') && !str_contains($received['mensaje'], $data['dni']), 'El aviso inicial no distingue el pago pendiente o expone el DNI.');
+checkNotification(str_contains($received['mensaje'], 'escanea el código QR') && str_contains($received['mensaje'], 'ingresa S/ 60'), 'La solicitud de Yape no explica cómo pagar.');
 $payment = query($db, 'SELECT id FROM pagos WHERE reserva_id=?', [$pendingId])->get_result()->fetch_assoc();
 (new PaymentService($db))->confirm((int)$payment['id'], $user);
 $events = query($db, 'SELECT evento,estado,mensaje FROM notificaciones WHERE reserva_id=? ORDER BY id', [$pendingId])->get_result()->fetch_all(MYSQLI_ASSOC);
 checkNotification(count($events) === 2 && $events[0]['evento'] === 'Recibida' && $events[0]['estado'] === 'Cancelado', 'El aviso inicial sin enviar debe cancelarse al confirmar el pago.');
 checkNotification($events[1]['evento'] === 'Confirmada' && $events[1]['estado'] === 'Pendiente' && str_contains($events[1]['mensaje'], 'de 08:00 a 09:00'), 'La confirmación manual no generó el correo con el horario.');
+
+$paidNow = $data;
+$paidNow['cancha'] = '4';
+$paidNow['hora'] = '09';
+$paidNow['pagoRecibido'] = '1';
+$paidNowId = $service->create($paidNow, $user);
+$paidNowState = query($db, 'SELECT r.estado AS reserva,p.estado AS pago,n.evento FROM reservas r JOIN pagos p ON p.reserva_id=r.id JOIN notificaciones n ON n.reserva_id=r.id WHERE r.id=?', [$paidNowId])->get_result()->fetch_assoc();
+checkNotification($paidNowState['reserva'] === 'Confirmado' && $paidNowState['pago'] === 'Confirmado'
+    && $paidNowState['evento'] === 'Confirmada', 'Marcar Yape como recibido al reservar no confirmó el pago y generó el correo correcto.');
+
+$unpaidCash = $data;
+$unpaidCash['cancha'] = '3';
+$unpaidCash['hora'] = '10';
+$unpaidCash['pago'] = 'Efectivo';
+$unpaidCash['pagoRecibido'] = '0';
+$unpaidCashId = $service->create($unpaidCash, $user);
+$unpaidCashState = query($db, 'SELECT r.estado AS reserva,p.estado AS pago,n.evento FROM reservas r JOIN pagos p ON p.reserva_id=r.id JOIN notificaciones n ON n.reserva_id=r.id WHERE r.id=?', [$unpaidCashId])->get_result()->fetch_assoc();
+checkNotification($unpaidCashState['reserva'] === 'Pendiente' && $unpaidCashState['pago'] === 'Pendiente'
+    && $unpaidCashState['evento'] === 'Recibida', 'Se confirmó una reserva en efectivo sin marcar el pago recibido.');
 
 $data['cancha'] = '3';
 $data['hora'] = '09';
@@ -86,4 +115,4 @@ try {
     checkNotification($e->status === 422, 'El correo inválido no devolvió error de validación.');
 }
 
-echo "Notificaciones: destinatarios independientes, horario, solicitud pendiente, confirmación, edición y validación OK.\n";
+echo "Notificaciones: destinatarios, QR adjunto, pago pendiente o recibido, confirmación y validación OK.\n";

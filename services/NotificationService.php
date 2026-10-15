@@ -19,10 +19,17 @@ class NotificationService {
         $end=sprintf('%02d:00', (int)$r['hora'] + 1);
         $date=DateTimeImmutable::createFromFormat('!Y-m-d', $r['fecha'])->format('d/m/Y');
         $intro=$event === 'Recibida'
-            ? "Recibimos tu solicitud de reserva. El pago aún está pendiente de verificación; la cancha NO está confirmada.\nEl horario se aparta por 15 minutos desde el registro."
+            ? "Recibimos tu solicitud de reserva. El pago aún está pendiente; la cancha NO está confirmada.\nEl horario se aparta por 15 minutos desde el registro."
             : 'Tu cancha está agendada y confirmada.';
         $status=$event === 'Recibida' ? 'Pendiente de pago o verificación' : 'Confirmada';
         $text="$intro\n\nReserva Arena 7 #$id\nCliente: {$r['cliente']}\nCancha: {$r['cancha']} - {$r['deporte']}\nFecha: $date\nHorario: de $start a $end\nMonto: S/ {$r['monto']}\nEstado: $status\nUbicación: ".self::maps();
+        if ($event === 'Recibida' && $r['pago'] === 'Yape') {
+            $text .= "\n\nPara pagar con Yape, escanea el código QR incluido en este correo e ingresa S/ {$r['monto']} en la aplicación. El QR personal no fija el importe automáticamente. La reserva se confirmará únicamente cuando el administrador verifique el abono.";
+        } elseif ($event === 'Recibida' && $r['pago'] === 'Pasarela QR') {
+            $text .= "\n\nEl QR de la pasarela aparece en la constancia de la reserva. La reserva se confirmará cuando el proveedor verifique el pago.";
+        } elseif ($event === 'Recibida') {
+            $text .= "\n\nMedio de pago: {$r['pago']}. Coordina el pago con el administrador. La reserva se confirmará únicamente después de verificarlo.";
+        }
         $existing=query($this->db,'SELECT id,estado,intentos FROM notificaciones WHERE reserva_id=? AND evento=?',[$id,$event])->get_result()->fetch_assoc();
         if (!$existing) {
             query($this->db,'INSERT INTO notificaciones (reserva_id,evento,email,mensaje,estado) VALUES (?,?,?,?,?)',[$id,$event,$r['email'],$text,$r['email']?'Pendiente':'Sin correo']);
@@ -37,7 +44,7 @@ class NotificationService {
         $sent=0;
         try {
             query($this->db,"UPDATE notificaciones n JOIN reservas r ON r.id=n.reserva_id SET n.estado='Cancelado' WHERE n.evento='Recibida' AND n.estado IN ('Pendiente','Error') AND (r.estado<>'Pendiente' OR r.hold_until<=NOW())");
-            $jobs=query($this->db,"SELECT n.* FROM notificaciones n JOIN reservas r ON r.id=n.reserva_id WHERE n.estado IN ('Pendiente','Error') AND n.intentos<5 AND (n.ultimo_intento IS NULL OR n.ultimo_intento<DATE_SUB(NOW(),INTERVAL 5 MINUTE)) AND ((n.evento='Recibida' AND r.estado='Pendiente' AND r.hold_until>NOW()) OR (n.evento='Confirmada' AND r.estado='Confirmado')) ORDER BY n.id LIMIT 20")->get_result()->fetch_all(MYSQLI_ASSOC);
+            $jobs=query($this->db,"SELECT n.*,r.pago AS metodo_pago FROM notificaciones n JOIN reservas r ON r.id=n.reserva_id WHERE n.estado IN ('Pendiente','Error') AND n.intentos<5 AND (n.ultimo_intento IS NULL OR n.ultimo_intento<DATE_SUB(NOW(),INTERVAL 5 MINUTE)) AND ((n.evento='Recibida' AND r.estado='Pendiente' AND r.hold_until>NOW()) OR (n.evento='Confirmada' AND r.estado='Confirmado')) ORDER BY n.id LIMIT 20")->get_result()->fetch_all(MYSQLI_ASSOC);
             foreach($jobs as $job){
                 $current=query($this->db,'SELECT estado,hold_until FROM reservas WHERE id=?',[$job['reserva_id']])->get_result()->fetch_assoc();
                 if (!$current || ($job['evento']==='Recibida' && ($current['estado']!=='Pendiente' || strtotime($current['hold_until'])<=time())) || ($job['evento']==='Confirmada' && $current['estado']!=='Confirmado')) {
@@ -56,14 +63,33 @@ class NotificationService {
 
     private function send(string $provider, array $job): void {
         $subject = ($job['evento']==='Recibida' ? 'Solicitud de reserva recibida (pago pendiente) Arena 7 #' : 'Confirmación de reserva Arena 7 #').$job['reserva_id'];
+        $withYapeQr = $job['evento'] === 'Recibida' && $job['metodo_pago'] === 'Yape';
+        $qrPath = $withYapeQr ? __DIR__.'/../assets/yape-qr-codigo.png' : null;
+        if ($qrPath !== null && !is_readable($qrPath)) throw new RuntimeException('No se encuentra el QR de Yape para el correo.');
+        $html = $withYapeQr ? self::paymentHtml($job['mensaje']) : null;
         if ($provider === 'resend') {
-            $data = externalJson('https://api.resend.com/emails', cfg('RESEND_API_KEY'), [
+            $payload = [
                 'from'=>cfg('MAIL_FROM'), 'to'=>[$job['email']], 'subject'=>$subject, 'text'=>$job['mensaje']
-            ], ['Idempotency-Key: arena7-confirmacion-'.$job['id']]);
+            ];
+            if ($withYapeQr) {
+                $payload['html'] = $html;
+                $payload['attachments'] = [[
+                    'filename'=>'yape-qr.png', 'content'=>base64_encode(file_get_contents($qrPath)),
+                    'content_type'=>'image/png', 'content_id'=>'yape-qr'
+                ]];
+            }
+            $data = externalJson('https://api.resend.com/emails', cfg('RESEND_API_KEY'), $payload, ['Idempotency-Key: arena7-confirmacion-'.$job['id']]);
             if (empty($data['id'])) throw new ApiError('El proveedor no confirmó la aceptación del mensaje.', 502);
             return;
         }
 
-        GmailMailer::send($job['email'], $subject, $job['mensaje']);
+        GmailMailer::send($job['email'], $subject, $job['mensaje'], $html, $qrPath);
+    }
+
+    public static function paymentHtml(string $message): string {
+        return '<!doctype html><html lang="es"><body style="font-family:Arial,sans-serif;line-height:1.5;color:#202124">'
+            .nl2br(htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'))
+            .'<p><img src="cid:yape-qr" alt="Código QR para pagar con Yape" width="320" style="max-width:100%;height:auto"></p>'
+            .'</body></html>';
     }
 }

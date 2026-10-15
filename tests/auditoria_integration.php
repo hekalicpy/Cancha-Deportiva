@@ -43,8 +43,11 @@ check($edit && isset(json_decode($edit['detalle'], true)['antes']['hora']), 'La 
 $service->cancel($id, $user);
 check(query($db, 'SELECT estado FROM reservas WHERE id=?', [$id])->get_result()->fetch_assoc()['estado'] === 'Cancelado',
     'La cancelación eliminó o no actualizó la reserva.');
-check((int)query($db, 'SELECT COUNT(*) n FROM auditoria WHERE recurso_id=?', [$id])->get_result()->fetch_assoc()['n'] === 3,
-    'Falta un evento de auditoría.');
+$reservationEvents = query($db, "SELECT accion FROM auditoria WHERE recurso='reservas' AND recurso_id=?", [$id])->get_result()->fetch_all(MYSQLI_ASSOC);
+check(count($reservationEvents) === 4 && count(array_intersect(
+    array_column($reservationEvents, 'accion'),
+    ['RESERVA_CREAR', 'RESERVA_CONFIRMAR', 'RESERVA_EDITAR', 'RESERVA_CANCELAR']
+)) === 4, 'Falta un evento de auditoría de la reserva.');
 
 $rows = (new AuditService($db))->list(['usuario'=>$user['correo'], 'reserva_id'=>$id, 'accion'=>'RESERVA_CANCELAR']);
 check(count($rows) === 1, 'El filtro de auditoría no devolvió la cancelación.');

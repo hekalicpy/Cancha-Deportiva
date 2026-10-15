@@ -2,11 +2,11 @@
 class PaymentService {
     public function __construct(private mysqli $db) {}
     public function list(): array {return query($this->db,'SELECT p.*,r.cliente,r.estado AS reserva_estado FROM pagos p JOIN reservas r ON r.id=p.reserva_id ORDER BY p.id DESC LIMIT 500')->get_result()->fetch_all(MYSQLI_ASSOC);}
-    public function register(int $reservation,array $d,array $user): void {
+    public function register(int $reservation,array $d,array $user,bool $paid=false): void {
         // A transfer reference is evidence for review, never a bank validation.
-        $paid=$d['pago']==='Efectivo';$status=$paid?'Confirmado':'Pendiente';
+        $status=$paid?'Confirmado':'Pendiente';
         query($this->db,'INSERT INTO pagos (reserva_id,metodo,codigo,monto,estado,usuario) VALUES (?,?,?,?,?,?)',[$reservation,$d['pago'],$d['codigoPago']??'',$d['monto'],$status,$user['correo']]);
-        (new AuditService($this->db))->record($user['correo'],'PAGO_REGISTRAR','pagos',$this->db->insert_id,$paid?'Efectivo registrado por operador':($d['pago']==='Pasarela QR'?'Cobro pendiente de la pasarela':'Transferencia pendiente de revisión manual'));
+        (new AuditService($this->db))->record($user['correo'],'PAGO_REGISTRAR','pagos',$this->db->insert_id,$paid?'Pago recibido y verificado por operador':($d['pago']==='Pasarela QR'?'Cobro pendiente de la pasarela':'Pago pendiente de revisión manual'));
         if($paid) {$this->confirmReservation($reservation,$user);}
     }
     private function confirmReservation(int $id,array $user): void {
