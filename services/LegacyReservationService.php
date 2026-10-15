@@ -45,13 +45,16 @@ class LegacyReservationService {
 
     public function create(array $input, array $user): int {
         $fields = $this->fields($input);
+        $identity = $_SESSION['identity'] ?? [];
+        $source = ($identity['dni'] ?? null) === $fields[0] && ($identity['nombre'] ?? null) === $fields[1]
+            && ($identity['expires'] ?? 0) >= time() ? 'Consulta API' : 'Manual';
         $this->lock();
         try {
-            return transaction($this->db, function () use ($fields, $user) {
+            return transaction($this->db, function () use ($fields, $user, $source) {
                 $this->available($fields);
                 query($this->db,
-                    'INSERT INTO reservas (dni,cliente,telefono,cancha,fecha,hora,pago,codigo_pago,monto,detalle,usuario) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-                    [...$fields, $user['correo']]
+                    'INSERT INTO reservas (dni,cliente,telefono,cancha,fecha,hora,pago,codigo_pago,monto,detalle,usuario,identidad) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                    [...$fields, $user['correo'], $source]
                 );
                 $id = $this->db->insert_id;
                 (new AuditService($this->db))->record($user['correo'], 'RESERVA_CREAR', 'reservas', $id,
@@ -65,9 +68,12 @@ class LegacyReservationService {
 
     public function edit(int $id, array $input, array $user): void {
         $fields = $this->fields($input);
+        $identity = $_SESSION['identity'] ?? [];
+        $source = ($identity['dni'] ?? null) === $fields[0] && ($identity['nombre'] ?? null) === $fields[1]
+            && ($identity['expires'] ?? 0) >= time() ? 'Consulta API' : 'Manual';
         $this->lock();
         try {
-            transaction($this->db, function () use ($id, $fields, $user) {
+            transaction($this->db, function () use ($id, $fields, $user, $source) {
                 $old = query($this->db, 'SELECT * FROM reservas WHERE id=? FOR UPDATE', [$id])->get_result()->fetch_assoc();
                 if (!$old || $old['estado'] === 'Cancelado') throw new ApiError('Reserva no encontrada.', 404);
                 if ($old['estado'] === 'Pendiente' && $old['hold_until'] && strtotime($old['hold_until']) < time()) {
@@ -80,8 +86,8 @@ class LegacyReservationService {
                 }
                 $this->available($fields, $id);
                 query($this->db,
-                    'UPDATE reservas SET dni=?,cliente=?,telefono=?,cancha=?,fecha=?,hora=?,pago=?,codigo_pago=?,monto=?,detalle=?,usuario=? WHERE id=?',
-                    [...$fields, $user['correo'], $id]
+                    'UPDATE reservas SET dni=?,cliente=?,telefono=?,cancha=?,fecha=?,hora=?,pago=?,codigo_pago=?,monto=?,detalle=?,usuario=?,identidad=? WHERE id=?',
+                    [...$fields, $user['correo'], $source, $id]
                 );
                 $before = array_intersect_key($old, array_flip(['cancha', 'fecha', 'hora', 'pago', 'monto', 'estado']));
                 $after = ['cancha'=>$fields[3], 'fecha'=>$fields[4], 'hora'=>$fields[5], 'pago'=>$fields[6], 'monto'=>$fields[8]];

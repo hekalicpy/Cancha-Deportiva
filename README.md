@@ -30,6 +30,19 @@ El portal conserva sus endpoints PHP originales. La nueva API de cinco servicios
 
 ## Servicios
 
+### Consulta de DNI
+
+El botón «Buscar DNI» del formulario llama a `GET /api.php/reservas/dni?dni=12345678` desde una sesión autenticada. PHP consulta la [API DNI de Decolecta](https://decolecta.gitbook.io/docs/servicios/integrations-2) con un token guardado solo en el servidor; comprueba que el número devuelto coincida y completa el nombre. No completa teléfono ni otros datos. Una consulta de nombres **no demuestra que quien reserva sea el titular del DNI**: el operador debe revisar el documento. Si el proveedor no responde o no hay token, el formulario permite ingresar el nombre manualmente. Se retiraron los nombres de prueba que antes aparecían al buscar.
+
+Decolecta [ofrece 1.000 solicitudes mensuales gratuitas](https://decolecta.com/), pero exige crear una cuenta y obtener un token. Regístrese en [Decolecta](https://decolecta.com/profile) y configure la variable de entorno `RENIEC_TOKEN` antes de iniciar PHP. Por ejemplo, en PowerShell:
+
+```powershell
+$env:RENIEC_TOKEN = 'TOKEN_OBTENIDO_EN_DECOLECTA'
+php -S localhost:8000
+```
+
+Si PHP ya estaba en marcha, reinícielo después de configurar la variable. No ponga el token en el código, `.env.example` ni GitHub. `php tests/dni_integration.php` verifica la validación y el formato de respuesta sin enviar datos a Decolecta.
+
 ### Ubicación del local
 
 El menú lateral del sistema incluye «Ubicación», que abre la información del local con «Ver ubicación» y «Cómo llegar». Estos enlaces también aparecen en la pantalla de acceso y el comprobante.
@@ -48,7 +61,7 @@ Para probar el servicio sin modificar datos reales, ejecute `php tests/auditoria
 ### Otros módulos
 
 - Autenticación con sesión, CAPTCHA y roles.
-- Reserva de cancha y consulta de identidad DNI mediante proveedor RENIEC configurable.
+- Reserva de cancha mediante la API de servicios.
 - Gestión de pagos con confirmación administrativa.
 - Notificaciones de confirmación y enlace de Google Maps.
 - Auditoría persistente de inicios de sesión, reservas y pagos.

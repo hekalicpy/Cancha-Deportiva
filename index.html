@@ -252,9 +252,10 @@
 
         <label>DNI</label>
         <div class="grupo-busqueda">
-            <input type="text" id="dni" placeholder="DNI del cliente">
-            <button class="btn" onclick="autocompletarCliente()">Buscar</button>
+            <input type="text" id="dni" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="8 dígitos del DNI">
+            <button type="button" class="btn" id="botonBuscarDni" onclick="autocompletarCliente()">Buscar DNI</button>
         </div>
+        <small id="estadoDni" role="status" aria-live="polite">La consulta completa el nombre desde una API externa. Confirme los datos con el documento del cliente.</small>
 
         <label>Cliente</label>
         <input type="text" id="cliente" placeholder="Nombre y apellido del cliente">
@@ -327,12 +328,6 @@ let usuarioActual = "";
 let csrfToken = "";
 let ultimoVoucher = null;
 let reservas = [];
-
-let clientes = [
-    { dni: "12345678", nombre: "Samuel Ramos", telefono: "987654321" },
-    { dni: "87654321", nombre: "Antonio Flores", telefono: "912345678" },
-    { dni: "45678912", nombre: "Luis Torres", telefono: "955444333" }
-];
 
 const horariosPorTurno = {
     manana: [
@@ -677,7 +672,6 @@ function guardarReserva(){
         if(resultado.trim() === "ok"){
             const eraEdicion = reservaEditandoId !== null;
             if(id) reservaActual.id = Number(id);
-            guardarCliente(dni, cliente, telefono);
             document.getElementById("fechaConsulta").value = fecha;
             limpiarFormulario();
             cerrarModal();
@@ -961,31 +955,29 @@ function compartirWhatsApp(){
     window.open("https://wa.me/?text=" + mensaje, "_blank");
 }
 
-function autocompletarCliente(){
-    let dni = document.getElementById("dni").value.trim();
-    let cliente = clientes.find(c => c.dni === dni);
-
-    if(cliente){
-        document.getElementById("cliente").value = cliente.nombre;
-        document.getElementById("telefono").value = cliente.telefono;
-        mostrarAlerta("Cliente encontrado y datos completados.", "ok");
-    }else{
-        mostrarAlerta("Cliente no encontrado. Ingrese los datos manualmente.", "error");
+async function autocompletarCliente(){
+    const dni = document.getElementById("dni").value.trim();
+    const estado = document.getElementById("estadoDni");
+    const boton = document.getElementById("botonBuscarDni");
+    if(!/^\d{8}$/.test(dni)){
+        estado.textContent = "Ingrese exactamente 8 dígitos.";
+        return;
     }
-}
-
-function guardarCliente(dni, nombre, telefono){
-    let existe = clientes.find(c => c.dni === dni);
-
-    if(existe){
-        existe.nombre = nombre;
-        existe.telefono = telefono;
-    }else{
-        clientes.push({
-            dni: dni,
-            nombre: nombre,
-            telefono: telefono
-        });
+    boton.disabled = true;
+    estado.textContent = "Consultando DNI…";
+    try {
+        const respuesta = await fetch("api.php/reservas/dni?dni=" + encodeURIComponent(dni), {cache:"no-store"});
+        const datos = await respuesta.json();
+        if(!respuesta.ok) throw new Error(datos.error || "No se pudo consultar el DNI.");
+        if(document.getElementById("dni").value.trim() !== dni) return;
+        document.getElementById("cliente").value = datos.nombre;
+        estado.textContent = "Nombre consultado en " + datos.fuente + ". Confirme que el DNI pertenece al cliente.";
+        mostrarAlerta("Nombre obtenido de la API de DNI.", "ok");
+    } catch(error){
+        estado.textContent = error.message + " Puede ingresar el nombre manualmente.";
+        mostrarAlerta("Consulta DNI no disponible.", "error");
+    } finally {
+        boton.disabled = false;
     }
 }
 

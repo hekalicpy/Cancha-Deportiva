@@ -3,11 +3,7 @@ class ReservationService {
     public function __construct(private mysqli $db) {}
     public function list(): array {return query($this->db,"SELECT *, CASE WHEN estado='Pendiente' AND hold_until<NOW() THEN 'Vencido' ELSE estado END AS estado FROM reservas ORDER BY fecha DESC,hora")->get_result()->fetch_all(MYSQLI_ASSOC);}
     public function dni(string $dni): array {
-        if(!preg_match('/^\d{8}$/',$dni)) throw new ApiError('El DNI debe tener 8 dígitos.');
-        $data=externalJson('https://api.decolecta.com/v1/reniec/dni?numero='.urlencode($dni),cfg('RENIEC_TOKEN'));
-        if(empty($data['full_name'])||($data['document_number']??'')!==$dni) throw new ApiError('No se encontró una identidad válida.',502);
-        $_SESSION['identity']=['dni'=>$dni,'nombre'=>$data['full_name'],'expires'=>time()+600];
-        return ['dni'=>$dni,'nombre'=>$data['full_name'],'fuente'=>'Decolecta','verificado'=>true];
+        return (new DniService())->lookup($dni);
     }
     public function save(array $d,array $user,?int $id=null): array {
         foreach(['dni','cliente','telefono','cancha','fecha','hora','pago','monto'] as $k) if(!isset($d[$k])||trim((string)$d[$k])==='') throw new ApiError("Complete el campo $k.");
@@ -32,7 +28,7 @@ class ReservationService {
             if($busy) throw new ApiError('La cancha ya está reservada en ese horario.',409);
             $identity=$_SESSION['identity']??[];
             $verified=($identity['dni']??null)===$d['dni']&&($identity['nombre']??null)===$d['cliente']&&($identity['expires']??0)>=time();
-            $values=[$d['dni'],$d['cliente'],$d['telefono'],$d['cancha'],$d['fecha'],$d['hora'],$d['pago'],$d['codigoPago']??'',$d['monto'],$d['detalle']??'',$user['correo'],$d['email']??'',$d['deporte']??'Fútbol',$verified?'Proveedor':'Manual'];
+            $values=[$d['dni'],$d['cliente'],$d['telefono'],$d['cancha'],$d['fecha'],$d['hora'],$d['pago'],$d['codigoPago']??'',$d['monto'],$d['detalle']??'',$user['correo'],$d['email']??'',$d['deporte']??'Fútbol',$verified?'Consulta API':'Manual'];
             if($id){query($this->db,'UPDATE reservas SET dni=?,cliente=?,telefono=?,cancha=?,fecha=?,hora=?,pago=?,codigo_pago=?,monto=?,detalle=?,usuario=?,email=?,deporte=?,identidad=? WHERE id=?',[...$values,$id]);}
             else {query($this->db,"INSERT INTO reservas (dni,cliente,telefono,cancha,fecha,hora,pago,codigo_pago,monto,detalle,usuario,email,deporte,identidad,estado,hold_until) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Pendiente',DATE_ADD(NOW(),INTERVAL 15 MINUTE))",$values);$id=$this->db->insert_id;(new PaymentService($this->db))->register($id,$d,$user);}
             (new AuditService($this->db))->record($user['correo'],$old?'RESERVA_EDITAR':'RESERVA_CREAR','reservas',$id);
