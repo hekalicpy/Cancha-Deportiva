@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arena 7 - Sistema de Reservas</title>
-    <link rel="stylesheet" href="estilo.css?v=ubicacion-2">
+    <link rel="stylesheet" href="estilo.css?v=dni-estado-1">
 </head>
 <body>
 
@@ -254,7 +254,7 @@
         <div class="grupo-busqueda">
             <input type="text" id="dni" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="8 dígitos del DNI" oninput="programarConsultaDni()">
         </div>
-        <small id="estadoDni" role="status" aria-live="polite">Al ingresar 8 dígitos se consultará el nombre automáticamente.</small>
+        <small id="estadoDni" class="estado-dni" role="status" aria-live="polite">Al ingresar 8 dígitos se consultará el nombre automáticamente.</small>
 
         <label>Cliente</label>
         <input type="text" id="cliente" placeholder="Nombre y apellido del cliente">
@@ -486,6 +486,7 @@ function ingresar(){
 function abrirModal(){
     reservaEditandoId = null;
     limpiarFormulario();
+    verificarDisponibilidadDni();
 
     document.getElementById("fecha").value = document.getElementById("fechaConsulta").value;
 
@@ -869,6 +870,7 @@ function editarReserva(id){
 
     document.getElementById("dni").value = r.dni;
     document.getElementById("estadoDni").textContent = "Si cambia el DNI, se consultará el nombre automáticamente.";
+    verificarDisponibilidadDni();
     document.getElementById("cliente").value = r.cliente;
     document.getElementById("telefono").value = r.telefono;
     document.getElementById("cancha").value = r.cancha;
@@ -963,6 +965,25 @@ function compartirWhatsApp(){
     window.open("https://wa.me/?text=" + mensaje, "_blank");
 }
 
+async function verificarDisponibilidadDni(){
+    const version = versionConsultaDni;
+    try {
+        const response = await fetch("api.php/servicios", {cache:"no-store"});
+        if(!response.ok) return;
+        const servicios = await response.json();
+        if(version !== versionConsultaDni) return;
+        const estado = document.getElementById("estadoDni");
+        if(!servicios.dni){
+            estado.classList.add("error");
+            estado.textContent = "La consulta automática está desactivada: falta configurar RENIEC_TOKEN en el servidor. Puede ingresar el nombre manualmente.";
+        }else{
+            estado.classList.remove("error");
+        }
+    } catch(error){
+        console.error("No se pudo comprobar la disponibilidad de la API DNI.", error);
+    }
+}
+
 function programarConsultaDni(){
     const campo = document.getElementById("dni");
     campo.value = campo.value.replace(/\D/g, "").slice(0, 8);
@@ -977,10 +998,12 @@ function programarConsultaDni(){
     nombreAutocompletado = "";
     if(dni !== dniConsultado) dniConsultado = "";
     if(dni.length < 8){
+        estado.classList.remove("error");
         estado.textContent = "Ingrese los 8 dígitos para consultar el nombre automáticamente.";
         return;
     }
     estado.textContent = "Preparando consulta de DNI…";
+    estado.classList.remove("error");
     const version = versionConsultaDni;
     temporizadorDni = setTimeout(() => autocompletarCliente(version), 500);
 }
@@ -1001,10 +1024,12 @@ async function autocompletarCliente(version = versionConsultaDni){
         document.getElementById("cliente").value = datos.nombre;
         dniConsultado = dni;
         nombreAutocompletado = datos.nombre;
+        estado.classList.remove("error");
         estado.textContent = "Nombre consultado en " + datos.fuente + ". Confirme que el DNI pertenece al cliente.";
         mostrarAlerta("Nombre obtenido de la API de DNI.", "ok");
     } catch(error){
         if(version !== versionConsultaDni) return;
+        estado.classList.add("error");
         estado.textContent = error.message + " Puede ingresar el nombre manualmente.";
         mostrarAlerta("Consulta DNI no disponible.", "error");
     }
@@ -1034,6 +1059,7 @@ function limpiarFormulario(){
     dniConsultado = "";
     nombreAutocompletado = "";
     document.getElementById("estadoDni").textContent = "Al ingresar 8 dígitos se consultará el nombre automáticamente.";
+    document.getElementById("estadoDni").classList.remove("error");
     document.getElementById("dni").value = "";
     document.getElementById("cliente").value = "";
     document.getElementById("telefono").value = "";

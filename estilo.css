@@ -412,6 +412,20 @@ td button:hover{
     width:110px;
     margin-top:5px;
 }
+.estado-dni{
+    display:block;
+    margin:8px 0 12px;
+    padding:10px 12px;
+    border-radius:6px;
+    background:#eefaf6;
+    color:#24473e;
+    line-height:1.4;
+}
+.estado-dni.error{
+    background:#fff2e8;
+    color:#8b3300;
+    border-left:4px solid #e67e22;
+}
 
 .botones{
     display:flex;
