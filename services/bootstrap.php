@@ -28,9 +28,14 @@ mysqli_report(MYSQLI_REPORT_ERROR|MYSQLI_REPORT_STRICT);
 $db=new mysqli(cfg('DB_HOST','localhost'),cfg('DB_USER','root'),cfg('DB_PASSWORD'),cfg('DB_NAME','cancha_deportiva'));
 $db->set_charset('utf8mb4');
 if(PHP_SAPI!=='cli'){
+    if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+        http_response_code(426);
+        header('Content-Type: text/plain; charset=utf-8');
+        exit('HTTPS es obligatorio. Abra la dirección segura del sitio.');
+    }
     header('Referrer-Policy: no-referrer');
     header('X-Content-Type-Options: nosniff');
-    session_set_cookie_params(['httponly'=>true,'samesite'=>'Strict','secure'=>!empty($_SERVER['HTTPS'])]);session_start();
+    session_set_cookie_params(['httponly'=>true,'samesite'=>'Strict','secure'=>true]);session_start();
 }
 require_once __DIR__.'/AuditService.php';
 require_once __DIR__.'/AuthService.php';

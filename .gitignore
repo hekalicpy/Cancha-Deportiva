@@ -13,3 +13,4 @@ Thumbs.db
 # Dependencies and generated files
 node_modules/
 vendor/
+.runtime/

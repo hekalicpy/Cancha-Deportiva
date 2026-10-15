@@ -23,13 +23,15 @@ El portal conserva sus endpoints PHP originales. La nueva API de cinco servicios
 
    Para el envío por Gmail, instale también las dependencias con `composer install`.
 
-3. Inicie el servidor:
+3. Inicie la aplicación con HTTPS (el primer inicio descarga Caddy desde su sitio oficial):
 
    ```powershell
-   php -S localhost:8000
+   pwsh -File .\bin\start-https.ps1
    ```
 
-4. Abra `http://localhost:8000`.
+4. La primera vez, ejecute `pwsh -File .\bin\confiar-certificado-https.ps1` y apruebe en Windows **solo** el certificado local de Caddy cuya huella muestra el script. Después abra `https://localhost:8443/`. El antiguo `http://localhost:8000/` responde únicamente con una redirección permanente a HTTPS. El certificado y la clave quedan en el perfil local de Windows; no se publican en GitHub. Si Windows no ha aprobado el certificado, el navegador mostrará una advertencia: no la omita, complete el paso de confianza.
+
+El servidor PHP integrado (`php -S`) no ofrece TLS, así que no lo use para iniciar este proyecto. El script ejecuta PHP FastCGI solo en `127.0.0.1:9000` y sirve exclusivamente los recursos públicos; bloquea rutas internas como `services/`, `tests/` y `.env`. Para publicar en Internet hará falta un dominio y un certificado público válido en el servidor HTTPS; subir código a GitHub no publica la aplicación.
 
 ## Servicios
 
@@ -37,7 +39,7 @@ El portal conserva sus endpoints PHP originales. La nueva API de cinco servicios
 
 Al completar los 8 dígitos del DNI, el formulario llama automáticamente a `POST /api.php/reservas/dni` con el número en el cuerpo y un token CSRF. Espera medio segundo tras la última tecla para evitar consultas repetidas. PHP consulta la [API DNI de Decolecta](https://decolecta.gitbook.io/docs/servicios/integrations-2) con un token guardado solo en el servidor; comprueba que el número devuelto coincida y completa el nombre. No completa teléfono ni otros datos. Una consulta de nombres **no demuestra que quien reserva sea el titular del DNI**: el operador debe revisar el documento. Si el proveedor no responde o no hay token, el formulario permite ingresar el nombre manualmente. Se retiraron los nombres de prueba que antes aparecían al buscar.
 
-Solo la cuenta `PRIVATE_DATA_OWNER` con rol `administrador` puede iniciar sesión y acceder a DNI, reservas, pagos y auditoría. Los endpoints antiguos y nuevos aplican la misma regla. El DNI ya no sale en el enlace de WhatsApp ni en la URL de la petición del navegador; las respuestas privadas no se almacenan en caché. **Límite de privacidad:** Decolecta recibe el DNI para hacer la consulta, y quien administra el servidor o MySQL puede acceder a los registros. Si se publica el sistema fuera de `localhost`, configure HTTPS, acceso restringido a la base de datos y copias de seguridad protegidas.
+Solo la cuenta `PRIVATE_DATA_OWNER` con rol `administrador` puede iniciar sesión y acceder a DNI, reservas, pagos y auditoría. Los endpoints antiguos y nuevos aplican la misma regla. El DNI ya no sale en el enlace de WhatsApp ni en la URL de la petición del navegador; las respuestas privadas no se almacenan en caché. **Límite de privacidad:** Decolecta recibe el DNI para hacer la consulta, y quien administra el servidor o MySQL puede acceder a los registros. Si se publica el sistema fuera de `localhost`, use un certificado público válido, acceso restringido a la base de datos y copias de seguridad protegidas.
 
 Decolecta [ofrece una modalidad gratuita](https://decolecta.com/), pero exige crear una cuenta y obtener un token. Revise el límite de consultas vigente en su perfil de Decolecta. Regístrese en [Decolecta](https://decolecta.com/profile) y configure la variable de entorno `RENIEC_TOKEN` antes de iniciar PHP. Por ejemplo, en PowerShell:
 
