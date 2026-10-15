@@ -437,6 +437,15 @@ td button:hover{
 .instrucciones-yape strong{display:block;}
 .instrucciones-yape small{display:block;margin-top:8px;}
 .instrucciones-yape button{margin-top:8px;}
+.qr-yape{
+    display:block;
+    width:min(100%,320px);
+    height:auto;
+    margin:12px auto;
+    border-radius:8px;
+}
+.enlace-qr-yape{display:inline-block;margin-right:10px;}
+.voucher-qr-yape{text-align:center;break-inside:avoid;}
 
 .botones{
     display:flex;

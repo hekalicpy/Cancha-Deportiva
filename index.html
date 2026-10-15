@@ -284,6 +284,8 @@
         </select>
         <div id="instruccionesYape" class="instrucciones-yape" role="status">
             <strong>Yapear al <span id="numeroYape">Cargando…</span></strong>
+            <img class="qr-yape" src="assets/yape-qr.jpg" alt="QR de Yape de Jose Roberto Gonzalez Llatas" loading="lazy">
+            <a class="enlace-qr-yape" href="assets/yape-qr.jpg" download="Arena7-Yape-QR.jpg">Descargar QR de Yape</a>
             <button type="button" class="btn-secundario" onclick="copiarNumeroYape()">Copiar número</button>
             <small>Comprueba en tu Yape el abono, el monto y el código de seguridad de 3 dígitos de la notificación antes de confirmar. El código escrito por el cliente no basta.</small>
         </div>
@@ -974,14 +976,11 @@ function mostrarVoucher(reserva){
     document.getElementById("contenidoVoucher").innerHTML = `
         <p><b>N° Reserva:</b> ${reserva.id}</p>
         <p><b>Cliente:</b> ${escapeHtml(reserva.cliente)}</p>
-        <p><b>DNI:</b> ${escapeHtml(reserva.dni)}</p>
-        <p><b>Teléfono:</b> ${escapeHtml(reserva.telefono)}</p>
         <p><b>Cancha:</b> Cancha ${reserva.cancha}</p>
         <p><b>Fecha:</b> ${formatearFecha(reserva.fecha)}</p>
         <p><b>Horario:</b> ${reserva.horaTexto} - ${reserva.horaFin}</p>
         <p><b>Método de pago:</b> ${escapeHtml(reserva.pago)}</p>
-        ${reserva.pago === "Yape" && reserva.estado !== "Confirmado" ? `<p><b>Yapear al:</b> ${escapeHtml(destinoYape || "Consultar con el administrador")}</p>` : ""}
-        <p><b>Código de pago:</b> ${escapeHtml(reserva.codigoPago)}</p>
+        ${reserva.pago === "Yape" && reserva.estado !== "Confirmado" ? `<div class="voucher-qr-yape"><p><b>Yapear al:</b> ${escapeHtml(destinoYape || "Consultar con el administrador")}</p><img class="qr-yape" src="assets/yape-qr.jpg" alt="QR de Yape de Jose Roberto Gonzalez Llatas"></div>` : ""}
         <p><b>Monto:</b> S/ ${escapeHtml(reserva.monto)}</p>
         <p><b>Estado:</b> ${escapeHtml(reserva.estado)}</p>
         <p><b>Registrado por:</b> ${escapeHtml(reserva.usuario)}</p>
