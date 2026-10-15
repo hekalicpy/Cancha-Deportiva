@@ -53,6 +53,7 @@
                 <li id="menuReserva" class="activo" onclick="mostrarSeccion('reserva')">⚽ Alquiler / Reserva</li>
                 <li id="menuReportes" onclick="mostrarSeccion('reportes')">📊 Reportes</li>
                 <li id="menuUbicacion"><button type="button" class="menu-ubicacion" onclick="mostrarSeccion('ubicacion')">📍 Ubicación</button></li>
+                <li id="menuNotificaciones"><button type="button" class="menu-ubicacion" onclick="mostrarSeccion('notificaciones')">✉️ Notificaciones</button></li>
                 <li id="menuAuditoria" style="display:none"><button type="button" class="menu-ubicacion" onclick="mostrarSeccion('auditoria')">🧾 Auditoría</button></li>
             </ul>
         </div>
@@ -63,6 +64,12 @@
                 <div class="titulo"><h1>UBICACIÓN DEL LOCAL</h1></div>
                 <p>Encuentra Arena 7 y consulta cómo llegar al polideportivo.</p>
                 <section class="ubicacion-local" data-ubicacion aria-label="Ubicación del local" aria-live="polite"></section>
+            </div>
+
+            <div id="seccionNotificaciones" style="display:none;">
+                <div class="titulo"><h1>NOTIFICACIONES DE RESERVA</h1><button type="button" class="btn" onclick="cargarNotificaciones()">Actualizar</button></div>
+                <p id="estadoNotificaciones" role="status" aria-live="polite"></p>
+                <div class="tabla-reservas"><table><thead><tr><th>Reserva</th><th>Correo del cliente</th><th>Estado</th><th>Intentos</th><th>Detalle</th></tr></thead><tbody id="tablaNotificaciones"></tbody></table></div>
             </div>
 
             <div id="seccionAuditoria" style="display:none;">
@@ -264,6 +271,9 @@
         <label>Teléfono</label>
         <input type="text" id="telefono" placeholder="Número de celular">
 
+        <label for="emailCliente">Correo del cliente (para enviar la confirmación)</label>
+        <input type="email" id="emailCliente" maxlength="254" autocomplete="email" placeholder="cliente@ejemplo.com">
+
         <label>Cancha</label>
         <select id="cancha">
             <option value="1">Cancha 1</option>
@@ -432,17 +442,25 @@ function mostrarSeccion(seccion){
     document.getElementById("seccionReserva").style.display = "none";
     document.getElementById("seccionReportes").style.display = "none";
     document.getElementById("seccionUbicacion").style.display = "none";
+    document.getElementById("seccionNotificaciones").style.display = "none";
     document.getElementById("seccionAuditoria").style.display = "none";
 
     document.getElementById("menuReserva").classList.remove("activo");
     document.getElementById("menuReportes").classList.remove("activo");
     document.getElementById("menuUbicacion").classList.remove("activo");
+    document.getElementById("menuNotificaciones").classList.remove("activo");
     document.getElementById("menuAuditoria").classList.remove("activo");
 
     if(seccion === "auditoria"){
         document.getElementById("seccionAuditoria").style.display = "block";
         document.getElementById("menuAuditoria").classList.add("activo");
         cargarAuditoria();
+    }
+
+    if(seccion === "notificaciones"){
+        document.getElementById("seccionNotificaciones").style.display = "block";
+        document.getElementById("menuNotificaciones").classList.add("activo");
+        cargarNotificaciones();
     }
 
     if(seccion === "ubicacion"){
@@ -459,6 +477,28 @@ function mostrarSeccion(seccion){
         document.getElementById("seccionReportes").style.display = "block";
         document.getElementById("menuReportes").classList.add("activo");
         actualizarReportes();
+    }
+}
+
+async function cargarNotificaciones(){
+    const estado = document.getElementById("estadoNotificaciones");
+    const tabla = document.getElementById("tablaNotificaciones");
+    estado.textContent = "Cargando...";
+    try {
+        const [serviciosResponse, listaResponse] = await Promise.all([
+            fetch("api.php/servicios", {cache:"no-store"}),
+            fetch("api.php/notificaciones", {cache:"no-store"})
+        ]);
+        if(!serviciosResponse.ok || !listaResponse.ok) throw new Error("No se pudo consultar el estado.");
+        const servicios = await serviciosResponse.json();
+        const lista = await listaResponse.json();
+        estado.textContent = servicios.correo
+            ? "El envío está configurado. «Enviado» significa que el proveedor aceptó el mensaje."
+            : "El envío no está configurado: falta la cuenta de correo y su dominio remitente. Las confirmaciones quedan pendientes.";
+        tabla.innerHTML = lista.map(n => `<tr><td>${escapeHtml(n.reserva_id)}</td><td>${escapeHtml(n.email)}</td><td>${escapeHtml(n.estado)}</td><td>${escapeHtml(n.intentos)}</td><td>${escapeHtml(n.ultimo_error || "")}</td></tr>`).join("") || "<tr><td colspan=\"5\">Aún no hay notificaciones.</td></tr>";
+    } catch(error) {
+        estado.textContent = "No se pudieron cargar las notificaciones.";
+        tabla.innerHTML = "";
     }
 }
 
@@ -629,6 +669,7 @@ function guardarReserva(){
     let dni = document.getElementById("dni").value.trim();
     let cliente = document.getElementById("cliente").value.trim();
     let telefono = document.getElementById("telefono").value.trim();
+    let email = document.getElementById("emailCliente").value.trim();
     let cancha = document.getElementById("cancha").value;
     let fecha = document.getElementById("fecha").value;
     let hora = document.getElementById("hora").value;
@@ -653,6 +694,11 @@ function guardarReserva(){
         return;
     }
 
+    if(email && !document.getElementById("emailCliente").checkValidity()){
+        mostrarAlerta("Ingrese un correo válido para enviar la confirmación.", "error");
+        return;
+    }
+
     if(Number(monto) <= 0){
         mostrarAlerta("El monto a cobrar debe ser mayor a cero.", "error");
         return;
@@ -672,6 +718,7 @@ function guardarReserva(){
         dni: dni,
         cliente: cliente,
         telefono: telefono,
+        email: email,
         cancha: cancha,
         fecha: fecha,
         hora: hora,
@@ -690,6 +737,7 @@ function guardarReserva(){
     datos.append("dni", dni);
     datos.append("cliente", cliente);
     datos.append("telefono", telefono);
+    datos.append("email", email);
     datos.append("cancha", cancha);
     datos.append("fecha", fecha);
     datos.append("hora", hora);
@@ -752,6 +800,7 @@ function cargarReservas(){
                 dni: r.dni,
                 cliente: r.cliente,
                 telefono: r.telefono,
+                email: r.email,
                 cancha: String(r.cancha),
                 fecha: r.fecha,
                 hora: String(r.hora),
@@ -916,6 +965,7 @@ function editarReserva(id){
     verificarDisponibilidadDni();
     document.getElementById("cliente").value = r.cliente;
     document.getElementById("telefono").value = r.telefono;
+    document.getElementById("emailCliente").value = r.email || "";
     document.getElementById("cancha").value = r.cancha;
     document.getElementById("fecha").value = r.fecha;
     document.getElementById("pago").value = r.pago;
@@ -1144,6 +1194,7 @@ function limpiarFormulario(){
     document.getElementById("dni").value = "";
     document.getElementById("cliente").value = "";
     document.getElementById("telefono").value = "";
+    document.getElementById("emailCliente").value = "";
     document.getElementById("codigoPago").value = "";
     document.getElementById("monto").value = "";
     document.getElementById("detalle").value = "";

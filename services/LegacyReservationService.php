@@ -9,6 +9,7 @@ class LegacyReservationService {
         $dni = trim((string)$input['dni']);
         $cliente = trim((string)$input['cliente']);
         $telefono = trim((string)$input['telefono']);
+        $email = strtolower(trim((string)($input['email'] ?? '')));
         $cancha = (string)$input['cancha'];
         $fecha = (string)$input['fecha'];
         $hora = (string)$input['hora'];
@@ -23,14 +24,15 @@ class LegacyReservationService {
             || !in_array($pago, ['Yape','Plin','Efectivo','Pasarela QR'], true)
             || !$date || $date->format('Y-m-d') !== $fecha || $fecha < date('Y-m-d')
             || !is_numeric($monto) || (float)$monto <= 0 || (float)$monto > 999999.99
-            || mb_strlen($codigo) > 100 || mb_strlen($detalle) > 2000) {
+            || mb_strlen($codigo) > 100 || mb_strlen($detalle) > 2000
+            || strlen($email) > 254 || ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL))) {
             throw new ApiError('Revise los datos de la reserva.');
         }
         if ($pago === 'Pasarela QR' && !TaypiGateway::configured()) {
             throw new ApiError('La pasarela todavía no está configurada.', 503);
         }
         if ($pago === 'Pasarela QR' && $codigo !== '') throw new ApiError('El código de la pasarela lo genera el proveedor.');
-        return [$dni, $cliente, $telefono, $cancha, $fecha, $hora, $pago, $codigo, $monto, $detalle];
+        return [$dni, $cliente, $telefono, $cancha, $fecha, $hora, $pago, $codigo, $monto, $detalle, $email];
     }
 
     private function lock(): void {
@@ -57,7 +59,7 @@ class LegacyReservationService {
             return transaction($this->db, function () use ($fields, $user, $source) {
                 $this->available($fields);
                 query($this->db,
-                    'INSERT INTO reservas (dni,cliente,telefono,cancha,fecha,hora,pago,codigo_pago,monto,detalle,usuario,identidad) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                    'INSERT INTO reservas (dni,cliente,telefono,cancha,fecha,hora,pago,codigo_pago,monto,detalle,email,usuario,identidad) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
                     [...$fields, $user['correo'], $source]
                 );
                 $id = $this->db->insert_id;
@@ -66,6 +68,8 @@ class LegacyReservationService {
                     (new PaymentService($this->db))->register($id, [
                         'pago'=>$fields[6], 'codigoPago'=>$fields[7], 'monto'=>$fields[8]
                     ], $user);
+                } else {
+                    (new NotificationService($this->db))->enqueue($id);
                 }
                 (new AuditService($this->db))->record($user['correo'], 'RESERVA_CREAR', 'reservas', $id,
                     json_encode(['cancha'=>$fields[3], 'fecha'=>$fields[4], 'hora'=>$fields[5]], JSON_UNESCAPED_UNICODE));
@@ -96,9 +100,10 @@ class LegacyReservationService {
                 }
                 $this->available($fields, $id);
                 query($this->db,
-                    'UPDATE reservas SET dni=?,cliente=?,telefono=?,cancha=?,fecha=?,hora=?,pago=?,codigo_pago=?,monto=?,detalle=?,usuario=?,identidad=? WHERE id=?',
+                    'UPDATE reservas SET dni=?,cliente=?,telefono=?,cancha=?,fecha=?,hora=?,pago=?,codigo_pago=?,monto=?,detalle=?,email=?,usuario=?,identidad=? WHERE id=?',
                     [...$fields, $user['correo'], $source, $id]
                 );
+                if ($old['estado'] === 'Confirmado') (new NotificationService($this->db))->enqueue($id);
                 $before = array_intersect_key($old, array_flip(['cancha', 'fecha', 'hora', 'pago', 'monto', 'estado']));
                 $after = ['cancha'=>$fields[3], 'fecha'=>$fields[4], 'hora'=>$fields[5], 'pago'=>$fields[6], 'monto'=>$fields[8]];
                 (new AuditService($this->db))->record($user['correo'], 'RESERVA_EDITAR', 'reservas', $id,

@@ -6,8 +6,14 @@ class NotificationService {
     public function list(): array {return query($this->db,'SELECT id,reserva_id,email,estado,intentos,ultimo_error,creado FROM notificaciones ORDER BY id DESC LIMIT 500')->get_result()->fetch_all(MYSQLI_ASSOC);}
     public function enqueue(int $id): void {
         $r=query($this->db,'SELECT * FROM reservas WHERE id=?',[$id])->get_result()->fetch_assoc();
+        if (!$r || $r['estado'] !== 'Confirmado') throw new ApiError('Solo se notifica una reserva confirmada.', 409);
         $text="Reserva Arena 7 #$id\nCliente: {$r['cliente']}\nCancha: {$r['cancha']} - {$r['deporte']}\nFecha: {$r['fecha']}\nHora: {$r['hora']}:00 (1 hora)\nMonto: S/ {$r['monto']}\nUbicación: ".self::maps();
-        query($this->db,'INSERT IGNORE INTO notificaciones (reserva_id,email,mensaje,estado) VALUES (?,?,?,?)',[$id,$r['email'],$text,$r['email']?'Pendiente':'Sin correo']);
+        $existing=query($this->db,'SELECT id,estado,intentos FROM notificaciones WHERE reserva_id=?',[$id])->get_result()->fetch_assoc();
+        if (!$existing) {
+            query($this->db,'INSERT INTO notificaciones (reserva_id,email,mensaje,estado) VALUES (?,?,?,?)',[$id,$r['email'],$text,$r['email']?'Pendiente':'Sin correo']);
+        } elseif ($existing['estado'] === 'Sin correo' || ($existing['estado'] === 'Pendiente' && (int)$existing['intentos'] === 0)) {
+            query($this->db,'UPDATE notificaciones SET email=?,mensaje=?,estado=? WHERE id=?',[$r['email'],$text,$r['email']?'Pendiente':'Sin correo',$existing['id']]);
+        }
     }
     public function process(): array {
         if(!cfg('RESEND_API_KEY')||!cfg('MAIL_FROM')) return ['enviados'=>0,'estado'=>'Falta configurar RESEND_API_KEY y MAIL_FROM.'];
