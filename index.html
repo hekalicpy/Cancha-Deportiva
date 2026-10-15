@@ -286,8 +286,8 @@
         <label>Código de operación / pago</label>
         <input type="text" id="codigoPago" placeholder="Ejemplo: YP123456">
 
-        <label>Monto pagado</label>
-        <input type="number" id="monto" placeholder="Monto total pagado">
+        <label>Monto a cobrar</label>
+        <input type="number" id="monto" placeholder="Monto total a cobrar">
 
         <label>Detalles</label>
         <textarea id="detalle" placeholder="Ingrese algún detalle de la reserva"></textarea>
@@ -322,7 +322,6 @@
 
 <script>
 let reservaEditandoId = null;
-let captchaResultado = 0;
 let usuarioActual = "";
 let csrfToken = "";
 let temporizadorDni = null;
@@ -331,6 +330,9 @@ let dniConsultado = "";
 let nombreAutocompletado = "";
 let ultimoVoucher = null;
 let reservas = [];
+function escapeHtml(value){
+    return String(value ?? "").replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+}
 
 const horariosPorTurno = {
     manana: [
@@ -422,14 +424,12 @@ function mostrarSeccion(seccion){
     }
 }
 
-function generarCaptcha(){
-    let n1 = Math.floor(Math.random() * 9) + 1;
-    let n2 = Math.floor(Math.random() * 9) + 1;
-
-    captchaResultado = n1 + n2;
-
-    document.getElementById("preguntaCaptcha").innerText = "CAPTCHA: ¿Cuánto es " + n1 + " + " + n2 + "?";
+async function generarCaptcha(){
     document.getElementById("captcha").value = "";
+    const respuesta = await fetch("api.php/auth/captcha", {cache:"no-store"});
+    if(!respuesta.ok) throw new Error("No se pudo generar el CAPTCHA.");
+    const datos = await respuesta.json();
+    document.getElementById("preguntaCaptcha").innerText = datos.pregunta;
 }
 
 function validarPasswordSegura(clave){
@@ -454,15 +454,10 @@ function ingresar(){
         return;
     }
 
-    if(Number(captcha) !== captchaResultado){
-        mostrarAlerta("CAPTCHA incorrecto. Intente nuevamente.", "error");
-        generarCaptcha();
-        return;
-    }
-
     let datos = new FormData();
     datos.append("correo", correo);
     datos.append("clave", clave);
+    datos.append("captcha", captcha);
 
     fetch("login.php", {
         method: "POST",
@@ -474,7 +469,8 @@ function ingresar(){
             if(!await activarSesion()) throw new Error("No se pudo recuperar la sesión.");
             mostrarAlerta("Bienvenido al sistema.", "ok");
         }else{
-            mostrarAlerta("Correo o contraseña incorrectos.", "error");
+            mostrarAlerta("No se pudo iniciar sesión. Revise sus datos y el CAPTCHA.", "error");
+            generarCaptcha().catch(console.error);
         }
     })
     .catch(error => {
@@ -576,7 +572,7 @@ function crearGrid(){
                 grid.innerHTML += `
                     <div class="celda ocupado" onclick="abrirModalDesdeCelda('${c}', '${h.valor}')">
                         Reservado<br>
-                        <small>${reserva.cliente}</small>
+                        <small>${escapeHtml(reserva.cliente)}</small>
                     </div>
                 `;
             }else{
@@ -614,7 +610,7 @@ function guardarReserva(){
     }
 
     if(Number(monto) <= 0){
-        mostrarAlerta("El monto pagado debe ser mayor a cero.", "error");
+        mostrarAlerta("El monto a cobrar debe ser mayor a cero.", "error");
         return;
     }
 
@@ -641,7 +637,7 @@ function guardarReserva(){
         codigoPago: codigoPago,
         monto: monto,
         detalle: detalle,
-        estado: "Confirmado",
+        estado: pago === "Efectivo" ? "Confirmado" : "Pendiente",
         usuario: usuarioActual,
         creado: new Date().toLocaleString("es-PE")
     };
@@ -684,7 +680,7 @@ function guardarReserva(){
             if(eraEdicion){
                 mostrarAlerta("Reserva actualizada correctamente en la base de datos.", "ok");
             }else{
-                mostrarAlerta("Reserva registrada correctamente en la base de datos.", "ok");
+                mostrarAlerta(pago === "Efectivo" ? "Reserva registrada." : "Reserva pendiente: verifique la transferencia antes de confirmar el pago.", "ok");
                 mostrarVoucher(reservaActual);
             }
 
@@ -718,6 +714,7 @@ function cargarReservas(){
                 horaFin: horaInfo ? horaInfo.fin : "",
                 pago: r.pago,
                 codigoPago: r.codigo_pago,
+                pagoId: r.pago_id ? Number(r.pago_id) : null,
                 monto: r.monto,
                 detalle: r.detalle,
                 estado: r.estado,
@@ -761,20 +758,21 @@ function pintarTabla(){
         let fila = document.createElement("tr");
 
         fila.innerHTML = `
-            <td>${r.dni}</td>
-            <td>${r.cliente}</td>
-            <td>${r.telefono}</td>
+            <td>${escapeHtml(r.dni)}</td>
+            <td>${escapeHtml(r.cliente)}</td>
+            <td>${escapeHtml(r.telefono)}</td>
             <td>Cancha ${r.cancha}</td>
             <td>${formatearFecha(r.fecha)}</td>
             <td>${r.horaTexto} - ${r.horaFin}</td>
-            <td>${r.pago}</td>
-            <td>${r.codigoPago}</td>
-            <td class="estado-confirmado">${r.estado}</td>
-            <td>${r.usuario}</td>
+            <td>${escapeHtml(r.pago)}</td>
+            <td>${escapeHtml(r.codigoPago)}</td>
+            <td class="estado-confirmado">${escapeHtml(r.estado)}</td>
+            <td>${escapeHtml(r.usuario)}</td>
             <td>
                 <button onclick="editarReserva(${r.id})">✏️</button>
                 <button onclick="eliminarReserva(${r.id})">🗑️</button>
                 <button onclick="mostrarVoucherPorId(${r.id})">🧾</button>
+                ${r.estado === "Pendiente" && r.pagoId ? `<button onclick="confirmarPago(${r.pagoId})" title="Confirmar recepción del dinero">💰</button>` : ""}
             </td>
         `;
 
@@ -811,22 +809,22 @@ function actualizarReportes(){
     let totalMonto = 0;
 
     reservasFiltradas.forEach(r => {
-        totalMonto += Number(r.monto);
+        if(r.estado === "Confirmado") totalMonto += Number(r.monto);
 
         let fila = document.createElement("tr");
 
         fila.innerHTML = `
-            <td>${r.dni}</td>
-            <td>${r.cliente}</td>
-            <td>${r.telefono}</td>
+            <td>${escapeHtml(r.dni)}</td>
+            <td>${escapeHtml(r.cliente)}</td>
+            <td>${escapeHtml(r.telefono)}</td>
             <td>Cancha ${r.cancha}</td>
             <td>${formatearFecha(r.fecha)}</td>
             <td>${r.horaTexto} - ${r.horaFin}</td>
-            <td>${r.pago}</td>
-            <td>${r.codigoPago}</td>
-            <td>S/ ${r.monto}</td>
-            <td>${r.usuario}</td>
-            <td>${r.creado}</td>
+            <td>${escapeHtml(r.pago)}</td>
+            <td>${escapeHtml(r.codigoPago)}</td>
+            <td>S/ ${escapeHtml(r.monto)}</td>
+            <td>${escapeHtml(r.usuario)}</td>
+            <td>${escapeHtml(r.creado)}</td>
         `;
 
         tabla.appendChild(fila);
@@ -914,6 +912,19 @@ function eliminarReserva(id){
     }
 }
 
+async function confirmarPago(id){
+    if(!confirm("Confirme únicamente después de verificar el abono en su cuenta Yape/Plin. ¿Dinero recibido?")) return;
+    try {
+        const response = await fetch("api.php/pagos/" + id + "/confirmar", {
+            method:"POST", headers:{"X-CSRF-Token":csrfToken}
+        });
+        const data = await response.json();
+        if(!response.ok) throw new Error(data.error || "No se pudo confirmar el pago.");
+        mostrarAlerta("Pago confirmado por el administrador.", "ok");
+        cargarReservas();
+    } catch(error) { mostrarAlerta(error.message, "error"); }
+}
+
 function mostrarVoucherPorId(id){
     let reserva = reservas.find(r => r.id === id);
 
@@ -927,22 +938,21 @@ function mostrarVoucher(reserva){
 
     document.getElementById("contenidoVoucher").innerHTML = `
         <p><b>N° Reserva:</b> ${reserva.id}</p>
-        <p><b>Cliente:</b> ${reserva.cliente}</p>
-        <p><b>DNI:</b> ${reserva.dni}</p>
-        <p><b>Teléfono:</b> ${reserva.telefono}</p>
+        <p><b>Cliente:</b> ${escapeHtml(reserva.cliente)}</p>
+        <p><b>DNI:</b> ${escapeHtml(reserva.dni)}</p>
+        <p><b>Teléfono:</b> ${escapeHtml(reserva.telefono)}</p>
         <p><b>Cancha:</b> Cancha ${reserva.cancha}</p>
         <p><b>Fecha:</b> ${formatearFecha(reserva.fecha)}</p>
         <p><b>Horario:</b> ${reserva.horaTexto} - ${reserva.horaFin}</p>
-        <p><b>Método de pago:</b> ${reserva.pago}</p>
-        <p><b>Código de pago:</b> ${reserva.codigoPago}</p>
-        <p><b>Monto pagado:</b> S/ ${reserva.monto}</p>
-        <p><b>Estado:</b> ${reserva.estado}</p>
-        <p><b>Registrado por:</b> ${reserva.usuario}</p>
-        <p><b>Fecha de registro:</b> ${reserva.creado}</p>
+        <p><b>Método de pago:</b> ${escapeHtml(reserva.pago)}</p>
+        <p><b>Código de pago:</b> ${escapeHtml(reserva.codigoPago)}</p>
+        <p><b>Monto:</b> S/ ${escapeHtml(reserva.monto)}</p>
+        <p><b>Estado:</b> ${escapeHtml(reserva.estado)}</p>
+        <p><b>Registrado por:</b> ${escapeHtml(reserva.usuario)}</p>
+        <p><b>Fecha de registro:</b> ${escapeHtml(reserva.creado)}</p>
         <hr>
         <p class="mensaje-voucher">
-            Esta constancia valida la reserva de la cancha. 
-            La reserva se confirma con el pago total. No hay devolución.
+            ${reserva.estado === "Confirmado" ? "Reserva confirmada por el administrador." : "Pago pendiente de verificación. Esta constancia no acredita que se haya recibido dinero."}
         </p>
     `;
 
@@ -960,9 +970,9 @@ function imprimirReporte(){
 function compartirWhatsApp(){
     if(!ultimoVoucher) return;
 
-    let mensaje = `Voucher de Reserva Arena 7%0ACliente: ${ultimoVoucher.cliente}%0ADNI: ${ultimoVoucher.dni}%0ATeléfono: ${ultimoVoucher.telefono}%0ACancha: ${ultimoVoucher.cancha}%0AFecha: ${formatearFecha(ultimoVoucher.fecha)}%0AHorario: ${ultimoVoucher.horaTexto} - ${ultimoVoucher.horaFin}%0APago: ${ultimoVoucher.pago}%0ACódigo: ${ultimoVoucher.codigoPago}%0AMonto: S/ ${ultimoVoucher.monto}%0AEstado: ${ultimoVoucher.estado}`;
+    let mensaje = `Reserva Arena 7 #${ultimoVoucher.id}\nCancha: ${ultimoVoucher.cancha}\nFecha: ${formatearFecha(ultimoVoucher.fecha)}\nHorario: ${ultimoVoucher.horaTexto} - ${ultimoVoucher.horaFin}\nEstado: ${ultimoVoucher.estado}`;
 
-    window.open("https://wa.me/?text=" + mensaje, "_blank");
+    window.open("https://wa.me/?text=" + encodeURIComponent(mensaje), "_blank", "noopener,noreferrer");
 }
 
 async function verificarDisponibilidadDni(){
@@ -1017,7 +1027,11 @@ async function autocompletarCliente(version = versionConsultaDni){
     }
     estado.textContent = "Consultando DNI…";
     try {
-        const respuesta = await fetch("api.php/reservas/dni?dni=" + encodeURIComponent(dni), {cache:"no-store"});
+        const respuesta = await fetch("api.php/reservas/dni", {
+            method:"POST", cache:"no-store",
+            headers:{"Content-Type":"application/json", "X-CSRF-Token":csrfToken},
+            body:JSON.stringify({dni})
+        });
         const datos = await respuesta.json();
         if(!respuesta.ok) throw new Error(datos.error || "No se pudo consultar el DNI.");
         if(version !== versionConsultaDni || document.getElementById("dni").value.trim() !== dni) return;

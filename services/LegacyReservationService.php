@@ -57,6 +57,12 @@ class LegacyReservationService {
                     [...$fields, $user['correo'], $source]
                 );
                 $id = $this->db->insert_id;
+                if ($fields[6] === 'Yape' || $fields[6] === 'Plin') {
+                    query($this->db, "UPDATE reservas SET estado='Pendiente',hold_until=DATE_ADD(NOW(),INTERVAL 15 MINUTE) WHERE id=?", [$id]);
+                    (new PaymentService($this->db))->register($id, [
+                        'pago'=>$fields[6], 'codigoPago'=>$fields[7], 'monto'=>$fields[8]
+                    ], $user);
+                }
                 (new AuditService($this->db))->record($user['correo'], 'RESERVA_CREAR', 'reservas', $id,
                     json_encode(['cancha'=>$fields[3], 'fecha'=>$fields[4], 'hora'=>$fields[5]], JSON_UNESCAPED_UNICODE));
                 return $id;

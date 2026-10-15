@@ -14,7 +14,7 @@ try {
     $auth=new AuthService($db);
     if($route==='auth/captcha'&&$method==='GET') respond($auth->captcha());
     if($route==='auth/login'&&$method==='POST') respond($auth->login($input));
-    $user=$auth->requireUser();if($method!=='GET') $auth->csrf();
+    $user=$auth->privateData();if($method!=='GET') $auth->csrf();
     if($route==='auth/me'&&$method==='GET') respond(['user'=>$user,'csrf'=>$_SESSION['csrf']]);
     if($route==='auth/logout'&&$method==='POST') {session_destroy();respond(['ok'=>true]);}
     if($route==='servicios'&&$method==='GET') respond(['dni'=>cfg('RENIEC_TOKEN')!=='','correo'=>cfg('RESEND_API_KEY')!=='','pagos'=>'Registro manual con confirmación del administrador','maps'=>NotificationService::maps()]);
@@ -25,7 +25,7 @@ try {
         if($method==='PUT') respond($reservations->save($input,$user,(int)$m[1]));
         if($method==='DELETE') respond($reservations->cancel((int)$m[1],$user));
     }
-    if($route==='reservas/dni'&&$method==='GET') respond($reservations->dni($_GET['dni']??''));
+    if($route==='reservas/dni'&&$method==='POST') respond($reservations->dni((string)($input['dni']??'')));
     if($route==='pagos'&&$method==='GET') respond((new PaymentService($db))->list());
     if(preg_match('#^pagos/(\d+)/confirmar$#',$route,$m)&&$method==='POST') {$auth->admin();respond((new PaymentService($db))->confirm((int)$m[1],$user));}
     if($route==='notificaciones'&&$method==='GET') respond((new NotificationService($db))->list());

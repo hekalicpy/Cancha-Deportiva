@@ -6,7 +6,7 @@ header('Cache-Control: no-store');
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') throw new ApiError('Método no permitido.', 405);
     $auth = new AuthService($db);
-    $user = $auth->requireUser();
+    $user = $auth->privateData();
     $auth->csrf();
     $id = (new LegacyReservationService($db))->create($_POST, $user);
     header('X-Reserva-Id: '.$id);

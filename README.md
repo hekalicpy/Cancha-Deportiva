@@ -4,7 +4,7 @@ Proyecto web PHP y MySQL para gestionar reservas de Arena 7, con una capa de ser
 
 ## Estado actual
 
-El portal conserva sus endpoints PHP originales. La nueva API de cinco servicios está implementada parcialmente y todavía no está integrada por completo al frontend. La API registra Yape/Plin para revisión manual, mientras que el formulario principal conserva su flujo de confirmación anterior; no hay validación bancaria automática. Consulta DNI y correo requieren cuentas y claves de sus proveedores. Esta copia no incluye datos de clientes ni usuarios de la base de datos.
+El portal conserva sus endpoints PHP originales. La nueva API de cinco servicios está implementada parcialmente y todavía no está integrada por completo al frontend. Yape/Plin se registran como pendientes y solo el propietario puede confirmar manualmente la recepción del dinero; no hay validación bancaria automática. Consulta DNI y correo requieren cuentas y claves de sus proveedores. Esta copia no incluye datos de clientes ni usuarios de la base de datos.
 
 ## Requisitos
 
@@ -32,7 +32,9 @@ El portal conserva sus endpoints PHP originales. La nueva API de cinco servicios
 
 ### Consulta de DNI
 
-Al completar los 8 dígitos del DNI, el formulario llama automáticamente a `GET /api.php/reservas/dni?dni=12345678` desde una sesión autenticada. Espera medio segundo tras la última tecla para evitar consultas repetidas. PHP consulta la [API DNI de Decolecta](https://decolecta.gitbook.io/docs/servicios/integrations-2) con un token guardado solo en el servidor; comprueba que el número devuelto coincida y completa el nombre. No completa teléfono ni otros datos. Una consulta de nombres **no demuestra que quien reserva sea el titular del DNI**: el operador debe revisar el documento. Si el proveedor no responde o no hay token, el formulario permite ingresar el nombre manualmente. Se retiraron los nombres de prueba que antes aparecían al buscar.
+Al completar los 8 dígitos del DNI, el formulario llama automáticamente a `POST /api.php/reservas/dni` con el número en el cuerpo y un token CSRF. Espera medio segundo tras la última tecla para evitar consultas repetidas. PHP consulta la [API DNI de Decolecta](https://decolecta.gitbook.io/docs/servicios/integrations-2) con un token guardado solo en el servidor; comprueba que el número devuelto coincida y completa el nombre. No completa teléfono ni otros datos. Una consulta de nombres **no demuestra que quien reserva sea el titular del DNI**: el operador debe revisar el documento. Si el proveedor no responde o no hay token, el formulario permite ingresar el nombre manualmente. Se retiraron los nombres de prueba que antes aparecían al buscar.
+
+Solo la cuenta `PRIVATE_DATA_OWNER` con rol `administrador` puede iniciar sesión y acceder a DNI, reservas, pagos y auditoría. Los endpoints antiguos y nuevos aplican la misma regla. El DNI ya no sale en el enlace de WhatsApp ni en la URL de la petición del navegador; las respuestas privadas no se almacenan en caché. **Límite de privacidad:** Decolecta recibe el DNI para hacer la consulta, y quien administra el servidor o MySQL puede acceder a los registros. Si se publica el sistema fuera de `localhost`, configure HTTPS, acceso restringido a la base de datos y copias de seguridad protegidas.
 
 Decolecta [ofrece una modalidad gratuita](https://decolecta.com/), pero exige crear una cuenta y obtener un token. Revise el límite de consultas vigente en su perfil de Decolecta. Regístrese en [Decolecta](https://decolecta.com/profile) y configure la variable de entorno `RENIEC_TOKEN` antes de iniciar PHP. Por ejemplo, en PowerShell:
 
@@ -50,6 +52,12 @@ El menú lateral del sistema incluye «Ubicación», que abre la información de
 `GET /ubicacion.php` devuelve `nombre`, `local`, `direccion`, `latitud`, `longitud`, `mapa` y `como_llegar` como JSON público, sin sesión ni base de datos. Otros métodos devuelven 405.
 La ubicación se centraliza en `services/VenueLocation.php` y también se utiliza en las notificaciones. «Ver ubicación» abre la ficha concreta de Arena 7 - Sede Colegio Melitón Carvajal en Av. Prol. Iquitos 2139, Lince. «Cómo llegar» usa las coordenadas del marcador de esa ficha (-12.084917, -77.0282236), verificadas en Google Maps el 11/10/2026; no realiza una búsqueda por texto. Estos enlaces no requieren clave API. Google Maps permite elegir el punto de partida. El marcador corresponde al local; no se ha verificado por separado el acceso vehicular o peatonal.
 Si falla la carga, la interfaz ofrece reintentar. Esto no activa el envío de correo, que sigue requiriendo configurar su proveedor.
+
+### Pagos Yape y Plin
+
+El código de operación ingresado por el administrador es solo una referencia. La reserva queda `Pendiente` durante 15 minutos y el botón 💰 permite confirmarla **únicamente después de revisar el abono en la cuenta del comercio**. Un código escrito en el formulario no prueba que se haya pagado. La constancia muestra explícitamente si sigue pendiente.
+
+Existe un [SDK PHP abierto de TAYPI](https://github.com/neoevsys/taypi-php) para [QR interoperables con Yape y Plin](https://docs.taypi.pe/). El código del SDK es libre, pero los cobros reales requieren una cuenta de comercio, claves API y condiciones comerciales del proveedor. Todavía no se han configurado esas claves ni una pasarela de cobro automático en este proyecto. No use repositorios que simulan pagos o claves de terceros como prueba de una transferencia real.
 
 ### Auditoría
 
