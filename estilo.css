@@ -428,24 +428,25 @@ td button:hover{
 }
 .instrucciones-yape{
     margin:10px 0 14px;
-    padding:12px;
-    border:1px solid #c9d8f1;
-    border-radius:6px;
-    background:#f2f6ff;
-    line-height:1.5;
 }
-.instrucciones-yape strong{display:block;}
-.instrucciones-yape small{display:block;margin-top:8px;}
-.instrucciones-yape button{margin-top:8px;}
-.qr-yape{
-    display:block;
+.qr-yape-recorte{
+    position:relative;
     width:min(100%,320px);
-    height:auto;
+    aspect-ratio:1;
+    overflow:hidden;
     margin:12px auto;
-    border-radius:8px;
+    background:#fff;
+    break-inside:avoid;
 }
-.enlace-qr-yape{display:inline-block;margin-right:10px;}
-.voucher-qr-yape{text-align:center;break-inside:avoid;}
+.qr-yape-recorte img{
+    position:absolute;
+    display:block;
+    width:188.5%;
+    max-width:none;
+    height:auto;
+    left:-44.2%;
+    top:-58.3%;
+}
 
 .botones{
     display:flex;
