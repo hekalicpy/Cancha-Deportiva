@@ -1202,9 +1202,9 @@ async function autocompletarTelefono(version){
         if(datos.telefono){
             campo.value = datos.telefono;
             telefonoAutocompletado = datos.telefono;
-            estado.textContent = "Último celular registrado para este DNI. Confirme con el cliente que sigue vigente.";
+            estado.textContent = "Último celular guardado en Arena 7 para este DNI. Confirme con el cliente que sigue vigente.";
         }else{
-            estado.textContent = "No hay un celular registrado para este DNI. Pídaselo al cliente.";
+            estado.textContent = "Arena 7 no tiene un celular guardado para este DNI. Pídaselo al cliente.";
         }
     } catch(error){
         if(version !== versionConsultaDni) return;
