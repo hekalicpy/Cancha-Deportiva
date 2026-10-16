@@ -11,8 +11,8 @@ if (-not (Test-Path -LiteralPath $phpCgi)) { throw 'No se encontró php-cgi.exe 
 
 function Start-ArenaPhpCgi {
     # A desktop app or an already-open terminal may have an older environment
-    # than the user's saved Gmail settings. Load them only into this process.
-    foreach ($name in @('GMAIL_ADDRESS', 'GMAIL_APP_PASSWORD', 'RESEND_API_KEY', 'MAIL_FROM')) {
+    # than the user's saved provider settings. Load them only into this process.
+    foreach ($name in @('GMAIL_ADDRESS', 'GMAIL_APP_PASSWORD', 'RESEND_API_KEY', 'MAIL_FROM', 'TAYPI_MODE', 'TAYPI_PUBLIC_KEY', 'TAYPI_SECRET_KEY', 'TAYPI_WEBHOOK_SECRET')) {
         $value = [Environment]::GetEnvironmentVariable($name, 'User')
         if ($null -ne $value) { [Environment]::SetEnvironmentVariable($name, $value, 'Process') }
     }

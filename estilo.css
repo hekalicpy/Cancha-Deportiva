@@ -529,6 +529,11 @@ td button:hover{
     font-size:15px;
 }
 
+.voucher .monto-pago{
+    font-size:21px;
+    font-weight:700;
+}
+
 .mensaje-voucher{
     background:#eefaf6;
     border-left:5px solid #00b894;

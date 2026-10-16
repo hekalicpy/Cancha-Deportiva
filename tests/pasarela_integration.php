@@ -32,6 +32,11 @@ $input=[
 $reservationId=(new LegacyReservationService($db))->create($input,$user);
 $p=query($db,'SELECT * FROM pagos WHERE reserva_id=?',[$reservationId])->get_result()->fetch_assoc();
 checkGateway($p['estado']==='Pendiente' && $p['monto']==='40.00','El importe no quedó fijado en el servidor.');
+$nightInput=$input;
+$nightInput['hora']='18';
+$nightId=(new LegacyReservationService($db))->create($nightInput,$user);
+$nightPayment=query($db,'SELECT monto FROM pagos WHERE reserva_id=?',[$nightId])->get_result()->fetch_assoc();
+checkGateway($nightPayment['monto']==='60.00','El QR nocturno no usa la tarifa de S/ 60.00.');
 $reference='ARENA7-'.$p['id'];
 query($db,"INSERT INTO pasarela_pagos (pago_id,referencia,estado) VALUES (?,?,'Pendiente')",[$p['id'],$reference]);
 $service=new GatewayPaymentService($db);
