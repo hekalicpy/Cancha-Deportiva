@@ -26,6 +26,7 @@ try {
         if($method==='DELETE') respond($reservations->cancel((int)$m[1],$user));
     }
     if($route==='reservas/dni'&&$method==='POST') respond($reservations->dni((string)($input['dni']??'')));
+    if($route==='reservas/contacto'&&$method==='POST') respond((new CustomerContactService($db))->lookup((string)($input['dni']??'')));
     if(preg_match('#^reservas/(\d+)/qr$#',$route,$m)&&$method==='POST') respond((new GatewayPaymentService($db))->qr((int)$m[1]));
     if($route==='pagos'&&$method==='GET') respond((new PaymentService($db))->list());
     if(preg_match('#^pagos/(\d+)/confirmar$#',$route,$m)&&$method==='POST') {$auth->admin();respond((new PaymentService($db))->confirm((int)$m[1],$user,isset($input['codigoPago'])?(string)$input['codigoPago']:null));}

@@ -269,7 +269,8 @@
         <input type="text" id="cliente" placeholder="Nombre y apellido del cliente">
 
         <label>Teléfono</label>
-        <input type="text" id="telefono" placeholder="Número de celular">
+        <input type="text" id="telefono" inputmode="tel" autocomplete="off" placeholder="Número de celular">
+        <small id="estadoTelefono" class="estado-dni" role="status" aria-live="polite">Si el cliente ya reservó, se sugerirá su último celular registrado.</small>
 
         <label for="emailCliente">Correo del cliente (avisos de reserva y confirmación)</label>
         <input type="email" id="emailCliente" maxlength="254" autocomplete="email" placeholder="cliente@ejemplo.com">
@@ -350,6 +351,7 @@ let temporizadorDni = null;
 let versionConsultaDni = 0;
 let dniConsultado = "";
 let nombreAutocompletado = "";
+let telefonoAutocompletado = "";
 let ultimoVoucher = null;
 let reservas = [];
 let pasarelaDisponible = false;
@@ -981,6 +983,7 @@ function editarReserva(id){
     versionConsultaDni++;
     dniConsultado = "";
     nombreAutocompletado = "";
+    telefonoAutocompletado = "";
     reservaEditandoId = id;
 
     document.getElementById("dni").value = r.dni;
@@ -988,6 +991,7 @@ function editarReserva(id){
     verificarDisponibilidadDni();
     document.getElementById("cliente").value = r.cliente;
     document.getElementById("telefono").value = r.telefono;
+    document.getElementById("estadoTelefono").textContent = "Celular de esta reserva. Confirme con el cliente que sigue vigente.";
     document.getElementById("emailCliente").value = r.email || "";
     document.getElementById("cancha").value = r.cancha;
     document.getElementById("fecha").value = r.fecha;
@@ -1156,17 +1160,56 @@ function programarConsultaDni(){
     if(nombreAutocompletado && document.getElementById("cliente").value === nombreAutocompletado){
         document.getElementById("cliente").value = "";
     }
+    if(telefonoAutocompletado && document.getElementById("telefono").value === telefonoAutocompletado){
+        document.getElementById("telefono").value = "";
+    }
     nombreAutocompletado = "";
+    telefonoAutocompletado = "";
     if(dni !== dniConsultado) dniConsultado = "";
     if(dni.length < 8){
         estado.classList.remove("error");
         estado.textContent = "Ingrese los 8 dígitos para consultar el nombre automáticamente.";
+        document.getElementById("estadoTelefono").textContent = "Si el cliente ya reservó, se sugerirá su último celular registrado.";
         return;
     }
     estado.textContent = "Preparando consulta de DNI…";
     estado.classList.remove("error");
     const version = versionConsultaDni;
-    temporizadorDni = setTimeout(() => autocompletarCliente(version), 500);
+    document.getElementById("estadoTelefono").textContent = "Buscando celular registrado anteriormente…";
+    temporizadorDni = setTimeout(() => {
+        autocompletarCliente(version);
+        autocompletarTelefono(version);
+    }, 500);
+}
+
+async function autocompletarTelefono(version){
+    const dni = document.getElementById("dni").value.trim();
+    const campo = document.getElementById("telefono");
+    const estado = document.getElementById("estadoTelefono");
+    if(campo.value.trim()){
+        estado.textContent = "Ya hay un celular en el formulario. Confirme con el cliente que sigue vigente.";
+        return;
+    }
+    try {
+        const respuesta = await fetch("api.php/reservas/contacto", {
+            method:"POST", cache:"no-store",
+            headers:{"Content-Type":"application/json", "X-CSRF-Token":csrfToken},
+            body:JSON.stringify({dni})
+        });
+        const datos = await respuesta.json();
+        if(!respuesta.ok) throw new Error(datos.error || "No se pudo consultar el celular registrado.");
+        if(version !== versionConsultaDni || document.getElementById("dni").value.trim() !== dni || campo.value.trim()) return;
+        if(datos.telefono){
+            campo.value = datos.telefono;
+            telefonoAutocompletado = datos.telefono;
+            estado.textContent = "Último celular registrado para este DNI. Confirme con el cliente que sigue vigente.";
+        }else{
+            estado.textContent = "No hay un celular registrado para este DNI. Pídaselo al cliente.";
+        }
+    } catch(error){
+        if(version !== versionConsultaDni) return;
+        estado.textContent = "No se pudo consultar el historial. Ingrese el celular manualmente.";
+    }
 }
 
 async function autocompletarCliente(version = versionConsultaDni){
@@ -1223,11 +1266,13 @@ function limpiarFormulario(){
     versionConsultaDni++;
     dniConsultado = "";
     nombreAutocompletado = "";
+    telefonoAutocompletado = "";
     document.getElementById("estadoDni").textContent = "Al ingresar 8 dígitos se consultará el nombre automáticamente.";
     document.getElementById("estadoDni").classList.remove("error");
     document.getElementById("dni").value = "";
     document.getElementById("cliente").value = "";
     document.getElementById("telefono").value = "";
+    document.getElementById("estadoTelefono").textContent = "Si el cliente ya reservó, se sugerirá su último celular registrado.";
     document.getElementById("emailCliente").value = "";
     document.getElementById("codigoPago").value = "";
     document.getElementById("pagoRecibido").checked = false;
