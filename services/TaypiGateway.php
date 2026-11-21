@@ -22,6 +22,10 @@ final class TaypiGateway {
     }
 
     public function createPayment(string $amount, string $reference): array {
+        return EsbClient::post('pagos/qr', ['amount'=>$amount, 'reference'=>$reference]);
+    }
+
+    public function createPaymentDirect(string $amount, string $reference): array {
         if (!self::configured()) throw new ApiError('La pasarela todavía no está configurada.', 503);
         $path = '/api/v1/payments';
         $body = json_encode([

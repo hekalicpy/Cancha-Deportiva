@@ -1,0 +1,63 @@
+{
+  "info": {
+    "name": "Arena 7 - servicios REST",
+    "description": "Colección para la exposición. No incluye credenciales ni datos personales. Inicie el servidor con bin/start-https.ps1, resuelva el CAPTCHA manualmente y use variables privadas de Postman para la cuenta y un DNI autorizado.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "https://localhost:8443" },
+    { "key": "esb_url", "value": "https://localhost:8444" },
+    { "key": "csrf", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "01 GET ubicación pública",
+      "request": { "method": "GET", "url": "{{base_url}}/ubicacion.php", "header": [{"key":"Accept","value":"application/json"}] }
+    },
+    {
+      "name": "02 GET salud del ESB",
+      "request": { "method": "GET", "url": "{{esb_url}}/esb.php/health", "header": [{"key":"Accept","value":"application/json"}] }
+    },
+    {
+      "name": "03 GET CAPTCHA para inicio de sesión",
+      "request": { "method": "GET", "url": "{{base_url}}/api.php/auth/captcha" }
+    },
+    {
+      "name": "04 POST inicio de sesión",
+      "request": {
+        "method": "POST", "url": "{{base_url}}/api.php/auth/login",
+        "header": [{"key":"Content-Type","value":"application/json"}],
+        "body": {"mode":"raw","raw":"{\"correo\":\"{{admin_email}}\",\"clave\":\"{{admin_password}}\",\"captcha\":\"{{captcha_answer}}\"}"}
+      },
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["if (pm.response.code === 200) {", "  pm.collectionVariables.set('csrf', pm.response.json().csrf);", "}"]}}]
+    },
+    {
+      "name": "05 GET catálogo de cinco servicios",
+      "request": { "method": "GET", "url": "{{base_url}}/api.php/catalogo" }
+    },
+    {
+      "name": "06 GET estado de integraciones",
+      "request": { "method": "GET", "url": "{{base_url}}/api.php/servicios" }
+    },
+    {
+      "name": "07 POST consulta de DNI autorizada",
+      "request": {
+        "method": "POST", "url": "{{base_url}}/api.php/reservas/dni",
+        "header": [{"key":"Content-Type","value":"application/json"},{"key":"X-CSRF-Token","value":"{{csrf}}"}],
+        "body": {"mode":"raw","raw":"{\"dni\":\"{{dni_prueba}}\"}"}
+      }
+    },
+    {
+      "name": "08 GET pagos registrados",
+      "request": { "method": "GET", "url": "{{base_url}}/api.php/pagos" }
+    },
+    {
+      "name": "09 GET notificaciones",
+      "request": { "method": "GET", "url": "{{base_url}}/api.php/notificaciones" }
+    },
+    {
+      "name": "10 GET auditoría",
+      "request": { "method": "GET", "url": "{{base_url}}/api.php/auditoria" }
+    }
+  ]
+}

@@ -5,7 +5,7 @@ final class DniService {
         $token = cfg('RENIEC_TOKEN');
         if ($token === '') throw new ApiError('Consulta DNI no configurada. Ingrese el nombre manualmente o configure el token gratuito de Decolecta.', 503);
 
-        $data = externalJson('https://api.decolecta.com/v1/reniec/dni?numero='.$dni, $token);
+        $data = EsbClient::post('identidad/dni', ['dni'=>$dni]);
         $person = self::normalize($data, $dni);
         $_SESSION['identity'] = ['dni'=>$dni, 'nombre'=>$person['nombre'], 'expires'=>time()+600];
         return $person;

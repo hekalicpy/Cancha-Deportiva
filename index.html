@@ -55,6 +55,7 @@
                 <li id="menuUbicacion"><button type="button" class="menu-ubicacion" onclick="mostrarSeccion('ubicacion')">📍 Ubicación</button></li>
                 <li id="menuNotificaciones"><button type="button" class="menu-ubicacion" onclick="mostrarSeccion('notificaciones')">✉️ Notificaciones</button></li>
                 <li id="menuAuditoria" style="display:none"><button type="button" class="menu-ubicacion" onclick="mostrarSeccion('auditoria')">🧾 Auditoría</button></li>
+                <li id="menuCatalogo"><button type="button" class="menu-ubicacion" onclick="mostrarSeccion('catalogo')">Catálogo de servicios</button></li>
             </ul>
         </div>
 
@@ -70,6 +71,13 @@
                 <div class="titulo"><h1>NOTIFICACIONES DE RESERVA</h1><button type="button" class="btn" onclick="cargarNotificaciones()">Actualizar</button></div>
                 <p id="estadoNotificaciones" role="status" aria-live="polite"></p>
                 <div class="tabla-reservas"><table><thead><tr><th>Reserva</th><th>Aviso</th><th>Correo del cliente</th><th>Estado</th><th>Intentos</th><th>Enviado</th><th>Detalle</th></tr></thead><tbody id="tablaNotificaciones"></tbody></table></div>
+            </div>
+
+            <div id="seccionCatalogo" style="display:none;">
+                <div class="titulo"><h1>CATÁLOGO DE SERVICIOS</h1><button type="button" class="btn" onclick="cargarCatalogo()">Actualizar</button></div>
+                <p id="estadoCatalogo" role="status" aria-live="polite"></p>
+                <p>Modelo REST/JSON y desarrollo code-first. Este catálogo describe cómo descubrir e invocar cada servicio; no es un registro UDDI.</p>
+                <div class="tabla-reservas"><table><thead><tr><th>ID</th><th>Servicio</th><th>Función</th><th>Operaciones</th><th>Estado</th></tr></thead><tbody id="tablaCatalogo"></tbody></table></div>
             </div>
 
             <div id="seccionAuditoria" style="display:none;">
@@ -459,12 +467,20 @@ function mostrarSeccion(seccion){
     document.getElementById("seccionUbicacion").style.display = "none";
     document.getElementById("seccionNotificaciones").style.display = "none";
     document.getElementById("seccionAuditoria").style.display = "none";
+    document.getElementById("seccionCatalogo").style.display = "none";
 
     document.getElementById("menuReserva").classList.remove("activo");
     document.getElementById("menuReportes").classList.remove("activo");
     document.getElementById("menuUbicacion").classList.remove("activo");
     document.getElementById("menuNotificaciones").classList.remove("activo");
     document.getElementById("menuAuditoria").classList.remove("activo");
+    document.getElementById("menuCatalogo").classList.remove("activo");
+
+    if(seccion === "catalogo"){
+        document.getElementById("seccionCatalogo").style.display = "block";
+        document.getElementById("menuCatalogo").classList.add("activo");
+        cargarCatalogo();
+    }
 
     if(seccion === "auditoria"){
         document.getElementById("seccionAuditoria").style.display = "block";
@@ -492,6 +508,24 @@ function mostrarSeccion(seccion){
         document.getElementById("seccionReportes").style.display = "block";
         document.getElementById("menuReportes").classList.add("activo");
         actualizarReportes();
+    }
+}
+
+async function cargarCatalogo(){
+    const estado = document.getElementById("estadoCatalogo");
+    const tabla = document.getElementById("tablaCatalogo");
+    estado.textContent = "Consultando catálogo...";
+    try {
+        const response = await fetch("api.php/catalogo", {cache:"no-store"});
+        if(!response.ok) throw new Error("No se pudo consultar el catálogo.");
+        const data = await response.json();
+        estado.textContent = data.esb_operativo
+            ? "ESB operativo por HTTPS. La consulta DNI y el QR de pasarela pasan por esa capa."
+            : "El ESB no responde. Revise que Arena 7 se haya iniciado con el script HTTPS.";
+        tabla.innerHTML = data.servicios.map(s => `<tr><td>${escapeHtml(s.id)}</td><td>${escapeHtml(s.nombre)}</td><td>${escapeHtml(s.funcion)}</td><td>${s.operaciones.map(o=>escapeHtml(o)).join("<br>")}</td><td>${escapeHtml(s.estado)}</td></tr>`).join("");
+    } catch(error) {
+        estado.textContent = "No se pudo cargar el catálogo de servicios.";
+        tabla.innerHTML = "";
     }
 }
 

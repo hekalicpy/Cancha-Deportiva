@@ -9,14 +9,14 @@ $php = (Get-Command php -ErrorAction Stop).Source
 $phpCgi = Join-Path (Split-Path $php) 'php-cgi.exe'
 if (-not (Test-Path -LiteralPath $phpCgi)) { throw 'No se encontró php-cgi.exe junto a php.exe.' }
 
-function Start-ArenaPhpCgi {
+function Start-ArenaPhpCgi([int]$Port) {
     # A desktop app or an already-open terminal may have an older environment
     # than the user's saved provider settings. Load them only into this process.
-    foreach ($name in @('GMAIL_ADDRESS', 'GMAIL_APP_PASSWORD', 'RESEND_API_KEY', 'MAIL_FROM', 'TAYPI_MODE', 'TAYPI_PUBLIC_KEY', 'TAYPI_SECRET_KEY', 'TAYPI_WEBHOOK_SECRET')) {
+    foreach ($name in @('RENIEC_TOKEN', 'CA_BUNDLE_PATH', 'GMAIL_ADDRESS', 'GMAIL_APP_PASSWORD', 'RESEND_API_KEY', 'MAIL_FROM', 'TAYPI_MODE', 'TAYPI_PUBLIC_KEY', 'TAYPI_SECRET_KEY', 'TAYPI_WEBHOOK_SECRET')) {
         $value = [Environment]::GetEnvironmentVariable($name, 'User')
         if ($null -ne $value) { [Environment]::SetEnvironmentVariable($name, $value, 'Process') }
     }
-    Start-Process -FilePath $phpCgi -ArgumentList '-b', '127.0.0.1:9000' -WorkingDirectory $project -WindowStyle Hidden -PassThru
+    Start-Process -FilePath $phpCgi -ArgumentList '-b', "127.0.0.1:$Port" -WorkingDirectory $project -WindowStyle Hidden -PassThru
 }
 
 function Test-LocalPort([int]$Port) {
@@ -40,9 +40,9 @@ function Get-ProjectCaddy {
     })
 }
 
-function Get-ProjectPhpCgi {
+function Get-ProjectPhpCgi([int]$Port) {
     @(Get-CimInstance Win32_Process -Filter "Name='php-cgi.exe'" | Where-Object {
-        $_.ExecutablePath -ieq $phpCgi -and $_.CommandLine -match '127\.0\.0\.1:9000'
+        $_.ExecutablePath -ieq $phpCgi -and $_.CommandLine -like "*127.0.0.1:$Port*"
     })
 }
 
@@ -53,6 +53,11 @@ if (-not (Test-Path -LiteralPath $caddy)) {
 }
 
 $webRoot = $project.Replace('\', '/')
+# Both PHP workers inherit one short-lived secret. It is never written to the repo or browser.
+if (-not $env:ARENA7_ESB_SECRET) {
+    [Environment]::SetEnvironmentVariable('ARENA7_ESB_SECRET',
+        [Convert]::ToHexString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32)), 'Process')
+}
 @"
 {
     http_port 8000
@@ -85,6 +90,24 @@ localhost:8443 {
     }
 }
 
+localhost:8444 {
+    tls internal
+    bind 127.0.0.1 [::1]
+    root * "$webRoot"
+    header X-Content-Type-Options nosniff
+    header Referrer-Policy no-referrer
+
+    @esb path /esb.php /esb.php/*
+    handle @esb {
+        php_fastcgi 127.0.0.1:9001 {
+            try_files {path} =404
+        }
+    }
+    handle {
+        respond 404
+    }
+}
+
 http://localhost:8000 {
     bind 127.0.0.1 [::1]
     redir https://localhost:8443{uri} 308
@@ -94,37 +117,6 @@ http://localhost:8000 {
 & $caddy validate --config $config --adapter caddyfile | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'La configuración HTTPS no es válida.' }
 
-$existingHttps = Test-LocalPort 8443
-if ($existingHttps) {
-    if (-not (Get-ProjectCaddy)) {
-        throw 'El puerto HTTPS 8443 está ocupado por otro programa.'
-    }
-    $existingPhp = Get-ProjectPhpCgi
-    if ((Test-LocalPort 9000) -and -not $existingPhp) {
-        throw 'El puerto PHP 9000 está ocupado por otro programa.'
-    }
-    foreach ($process in $existingPhp) { Stop-Process -Id $process.ProcessId }
-    for ($attempt = 0; $attempt -lt 20; $attempt++) {
-        if (-not (Test-LocalPort 9000)) { break }
-        Start-Sleep -Milliseconds 100
-    }
-    if (Test-LocalPort 9000) {
-        throw 'PHP no liberó el puerto 9000.'
-    }
-    $cgiProcess = Start-ArenaPhpCgi
-    Start-Sleep -Milliseconds 500
-    if ($cgiProcess.HasExited) { throw 'PHP FastCGI no pudo reiniciarse.' }
-    Write-Host 'Arena 7 ya está funcionando en https://localhost:8443/'
-    $rootCert = Join-Path $env:APPDATA 'Caddy\pki\authorities\local\root.crt'
-    if (Test-Path -LiteralPath $rootCert) {
-        $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($rootCert)
-        $trusted = Get-ChildItem Cert:\CurrentUser\Root | Where-Object Thumbprint -EQ $certificate.Thumbprint
-        if (-not $trusted) { Write-Warning 'Windows aún debe aprobar el certificado local.' }
-        elseif (-not $NoBrowser) { Start-Process 'https://localhost:8443/' }
-    }
-    return
-}
-
 # Replace only an older PHP development server for this same project.
 if (Test-LocalPort 8000) {
     $oldHttp = @(Get-CimInstance Win32_Process -Filter "Name='php.exe'" | Where-Object {
@@ -132,19 +124,27 @@ if (Test-LocalPort 8000) {
     })
     foreach ($process in $oldHttp) { Stop-Process -Id $process.ProcessId }
 }
-foreach ($process in (Get-ProjectCaddy)) { Stop-Process -Id $process.ProcessId }
-foreach ($process in (Get-ProjectPhpCgi)) { Stop-Process -Id $process.ProcessId }
+if (Get-ProjectCaddy) {
+    foreach ($process in (Get-ProjectCaddy)) { Stop-Process -Id $process.ProcessId }
+    foreach ($port in 9000, 9001) {
+        foreach ($process in (Get-ProjectPhpCgi $port)) { Stop-Process -Id $process.ProcessId }
+    }
+}
 Start-Sleep -Milliseconds 300
-foreach ($port in 8000, 8443, 9000) {
+foreach ($port in 8000, 8443, 8444, 9000, 9001) {
     if (Test-LocalPort $port) {
         throw "El puerto $port está ocupado. Cierre el servidor anterior e inténtelo de nuevo."
     }
 }
 
-$cgiProcess = Start-ArenaPhpCgi
+$cgiProcess = $null
+$esbProcess = $null
 try {
+    $cgiProcess = Start-ArenaPhpCgi 9000
+    $esbProcess = Start-ArenaPhpCgi 9001
     Start-Sleep -Seconds 1
     if ($cgiProcess.HasExited) { throw 'PHP FastCGI no pudo iniciarse.' }
+    if ($esbProcess.HasExited) { throw 'El ESB FastCGI no pudo iniciarse.' }
     $caddyProcess = Start-Process -FilePath $caddy -ArgumentList 'run', '--config', $config, '--adapter', 'caddyfile' -WorkingDirectory $project -WindowStyle Hidden -PassThru
     for ($attempt = 0; $attempt -lt 10; $attempt++) {
         if (Test-LocalPort 8443) { break }
@@ -159,6 +159,8 @@ try {
 
     $response = Invoke-WebRequest -Uri 'https://localhost:8443/' -SkipCertificateCheck
     if ($response.StatusCode -ne 200) { throw 'La aplicación no respondió por HTTPS.' }
+    $esbHealth = Invoke-RestMethod -Uri 'https://localhost:8444/esb.php/health' -SkipCertificateCheck
+    if ($esbHealth.estado -ne 'operativo') { throw 'La capa ESB no respondió por HTTPS.' }
     $handler = [System.Net.Http.HttpClientHandler]::new()
     $handler.AllowAutoRedirect = $false
     $client = [System.Net.Http.HttpClient]::new($handler)
@@ -175,6 +177,7 @@ try {
     }
 
     Write-Host 'HTTPS funcionando: https://localhost:8443/'
+    Write-Host 'ESB funcionando: https://localhost:8444/esb.php/health'
     Write-Host 'http://localhost:8000/ redirige a HTTPS.'
     if (-not $trusted) {
         Write-Warning "El certificado local aún necesita aprobación de Windows. Ejecute: pwsh -File .\bin\confiar-certificado-https.ps1"
@@ -184,5 +187,6 @@ try {
 } catch {
     if ($caddyProcess -and -not $caddyProcess.HasExited) { Stop-Process -Id $caddyProcess.Id -Force }
     if ($cgiProcess -and -not $cgiProcess.HasExited) { Stop-Process -Id $cgiProcess.Id -Force }
+    if ($esbProcess -and -not $esbProcess.HasExited) { Stop-Process -Id $esbProcess.Id -Force }
     throw
 }
